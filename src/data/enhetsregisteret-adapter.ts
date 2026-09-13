@@ -34,6 +34,11 @@ const unique = (values: Array<string | undefined>): string[] => [...new Set(valu
 
 const normalizeOrgNumber = (value: string): string => value.replace(/\s/g, '');
 
+const embeddedRecords = (value: unknown): JsonRecord[] => {
+  if (!isRecord(value) || !Array.isArray(value.enheter)) return [];
+  return value.enheter.filter(isRecord);
+};
+
 function mapOrganization(raw: JsonRecord): Organization {
   const orgNumber = normalizeOrgNumber(text(raw.organisasjonsnummer) ?? '');
   const name = text(raw.navn);
@@ -106,6 +111,44 @@ export class EnhetsregisteretAdapter implements OrganizationAdapter {
         throw new EnhetsregisteretError(`Tidsavbrudd mot Enhetsregisteret etter ${this.timeoutMs} ms.`, url);
       }
       throw new EnhetsregisteretError(`Kunne ikke lese Enhetsregisteret: ${error instanceof Error ? error.message : 'ukjent feil'}.`, url);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async searchByName(input: string, limit = 10): Promise<Organization[]> {
+    const name = input.trim().slice(0, 180);
+    if (!name) return [];
+    const url = new URL(`${this.baseUrl}/enheter`);
+    url.searchParams.set('navn', name);
+    url.searchParams.set('navnMetodeForSoek', 'FORTLOEPENDE');
+    url.searchParams.set('size', String(Math.max(1, Math.min(limit, 20))));
+    url.searchParams.set('page', '0');
+    url.searchParams.set('sort', 'navn,ASC');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.fetcher(url.toString(), {
+        headers: { Accept: 'application/vnd.brreg.enhetsregisteret.enhet.v2+json, application/json' },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new EnhetsregisteretError(`Enhetsregisteret svarte med HTTP ${response.status}.`, url.toString(), response.status);
+      const payload = await response.json();
+      if (!isRecord(payload)) throw new Error('Responsen er ikke et JSON-objekt.');
+      return embeddedRecords(payload._embedded).flatMap((item) => {
+        try {
+          return [mapOrganization(item)];
+        } catch {
+          return [];
+        }
+      });
+    } catch (error) {
+      if (error instanceof EnhetsregisteretError) throw error;
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new EnhetsregisteretError(`Tidsavbrudd mot Enhetsregisteret etter ${this.timeoutMs} ms.`, url.toString());
+      }
+      throw new EnhetsregisteretError(`Kunne ikke lese Enhetsregisteret: ${error instanceof Error ? error.message : 'ukjent feil'}.`, url.toString());
     } finally {
       clearTimeout(timeout);
     }

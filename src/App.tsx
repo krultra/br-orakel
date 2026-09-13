@@ -23,7 +23,8 @@ function TrustLabel({ level }: { level: string }) {
 }
 
 function App() {
-  const [orgNumber, setOrgNumber] = useState('912345678');
+  const [orgNumber, setOrgNumber] = useState('');
+  const [organizationSearchResults, setOrganizationSearchResults] = useState<Organization[]>([]);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
@@ -33,18 +34,45 @@ function App() {
   const [calendarMode, setCalendarMode] = useState<'year' | 'list'>('year');
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
   const [loading, setLoading] = useState(false);
+  const [searchingOrganizations, setSearchingOrganizations] = useState(false);
   const [toast, setToast] = useState('');
 
   const loadOrganization = async (number = orgNumber) => {
     setLoading(true);
     try {
       const [nextOrg, nextObligations, nextSources, nextReports] = await Promise.all([api.organization(number), api.obligations(number), api.sources('', number), api.reports()]);
-      setOrganization(nextOrg); setObligations(nextObligations); setSources(nextSources); setReports(nextReports); setSelectedObligationId(nextObligations[0]?.id ?? null); setToast('Virksomhetsoversikten er oppdatert.');
+      setOrganization(nextOrg); setObligations(nextObligations); setSources(nextSources); setReports(nextReports); setSelectedObligationId(nextObligations[0]?.id ?? null); setOrganizationSearchResults([]); setToast('Virksomhetsoversikten er oppdatert.');
     } catch (error) { setOrganization(null); setToast(error instanceof Error ? error.message : 'Kunne ikke laste virksomheten.'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { void loadOrganization(); }, []);
+  const searchOrganizations = async () => {
+    const query = orgNumber.trim();
+    if (!query) return;
+    if (/^\d[\d\s]{8,}$/.test(query)) {
+      await loadOrganization(query);
+      return;
+    }
+    setSearchingOrganizations(true);
+    try {
+      const results = await api.searchOrganizations(query);
+      setOrganizationSearchResults(results);
+      setToast(results.length ? `${results.length} virksomheter funnet.` : 'Ingen virksomheter funnet.');
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Kunne ikke søke etter virksomheter.');
+    } finally {
+      setSearchingOrganizations(false);
+    }
+  };
+
+  useEffect(() => {
+    void api.health().then((health) => {
+      if (health.organizationProvider === 'mock') {
+        setOrgNumber('999999999');
+        void loadOrganization('999999999');
+      }
+    }).catch(() => undefined);
+  }, []);
 
   const selectedObligation = obligations.find((item) => item.id === selectedObligationId) ?? null;
   const filteredObligations = statusFilter === 'all' ? obligations : obligations.filter((item) => item.status === statusFilter);
@@ -61,8 +89,8 @@ function App() {
 
     <main className="page-container">
       <section className="hero-row">
-        <div><p className="eyebrow">MVP · demo med mockdata</p><Heading level={1} data-size="2xl">Hold oversikten over rapporteringen</Heading><Paragraph>Én samlet arbeidsflate for plikter, frister, kilder og avklaringer.</Paragraph></div>
-        <div className="org-picker"><label htmlFor="org-number">Virksomhet</label><div className="org-input-row"><Textfield id="org-number" value={orgNumber} onChange={(event) => setOrgNumber(event.target.value)} aria-label="Organisasjonsnummer" /><Button onClick={() => void loadOrganization()} disabled={loading}>{loading ? 'Laster…' : 'Velg virksomhet'}</Button></div><span className="field-hint">Prøv 912345678 for demoen.</span></div>
+        <div><p className="eyebrow">MVP · BRREG-data + mockutvidelser</p><Heading level={1} data-size="2xl">Hold oversikten over rapporteringen</Heading><Paragraph>Én samlet arbeidsflate for plikter, frister, kilder og avklaringer.</Paragraph></div>
+        <div className="org-picker"><label htmlFor="org-number">Virksomhet</label><div className="org-input-row"><Textfield id="org-number" value={orgNumber} onChange={(event) => { setOrgNumber(event.target.value); setOrganizationSearchResults([]); }} placeholder="Navn eller organisasjonsnummer" aria-label="Navn eller organisasjonsnummer" /><Button onClick={() => void searchOrganizations()} disabled={loading || searchingOrganizations}>{loading ? 'Laster…' : searchingOrganizations ? 'Søker…' : 'Søk'}</Button></div><span className="field-hint">Søk på navn eller ni siffer. Mockbedriften er 999999999.</span>{organizationSearchResults.length > 0 && <div className="org-search-results" aria-label="Søkeresultater">{organizationSearchResults.map((item) => <button key={item.orgNumber} className="org-search-result" onClick={() => { setOrgNumber(item.orgNumber); void loadOrganization(item.orgNumber); }}><strong>{item.name}</strong><span>{item.orgNumber} · {item.organizationForm} · {item.municipality || 'Kommune ikke oppgitt'}</span></button>)}</div>}</div>
       </section>
 
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}<button onClick={() => setToast('')} aria-label="Lukk melding"><X size={16} /></button></div>}

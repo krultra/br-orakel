@@ -8,7 +8,7 @@ const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringif
 });
 
 const rawOrganization = {
-  organisasjonsnummer: '912345678',
+  organisasjonsnummer: '999999999',
   navn: 'Fjordgløtt Mat og Handel AS',
   organisasjonsform: { kode: 'AS', beskrivelse: 'Aksjeselskap' },
   registrertIMvaregisteret: true,
@@ -31,11 +31,11 @@ test('Enhetsregisteret-adapteren slår opp og normaliserer grunnlag for oppgaver
     },
   });
 
-  const organization = await adapter.findByOrgNumber('912 345 678');
+  const organization = await adapter.findByOrgNumber('999 999 999');
 
   assert.ok(organization);
-  assert.equal(requests[0].url, 'https://data.brreg.no/enhetsregisteret/api/enheter/912345678');
-  assert.equal(organization.orgNumber, '912345678');
+  assert.equal(requests[0].url, 'https://data.brreg.no/enhetsregisteret/api/enheter/999999999');
+  assert.equal(organization.orgNumber, '999999999');
   assert.equal(organization.organizationForm, 'AS');
   assert.equal(organization.organizationFormName, 'Aksjeselskap');
   assert.deepEqual(organization.industryCodes, ['47.110', '56.101']);
@@ -48,10 +48,29 @@ test('Enhetsregisteret-adapteren slår opp og normaliserer grunnlag for oppgaver
   assert.deepEqual(organization.sources, ['source-brreg-org']);
 });
 
+test('Enhetsregisteret-adapteren søker på virksomhetsnavn og mapper paginert resultat', async () => {
+  let requestedUrl = '';
+  const adapter = new EnhetsregisteretAdapter({
+    fetcher: async (url) => {
+      requestedUrl = url;
+      return jsonResponse({ _embedded: { enheter: [rawOrganization] }, page: { number: 0, size: 5, totalElements: 1 } });
+    },
+  });
+
+  const results = await adapter.searchByName('Fjordgløtt', 5);
+  const url = new URL(requestedUrl);
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].name, 'Fjordgløtt Mat og Handel AS');
+  assert.equal(url.searchParams.get('navn'), 'Fjordgløtt');
+  assert.equal(url.searchParams.get('navnMetodeForSoek'), 'FORTLOEPENDE');
+  assert.equal(url.searchParams.get('size'), '5');
+});
+
 test('Enhetsregisteret-adapteren returnerer null for ukjent eller fjernet virksomhet', async () => {
   for (const status of [404, 410]) {
     const adapter = new EnhetsregisteretAdapter({ fetcher: async () => jsonResponse({}, status) });
-    assert.equal(await adapter.findByOrgNumber('912345678'), null);
+    assert.equal(await adapter.findByOrgNumber('999999999'), null);
   }
   const invalid = new EnhetsregisteretAdapter({ fetcher: async () => jsonResponse({}) });
   assert.equal(await invalid.findByOrgNumber('ikke-et-orgnr'), null);
@@ -61,9 +80,9 @@ test('Enhetsregisteret-adapteren eksponerer utilgjengelig register med status og
   const adapter = new EnhetsregisteretAdapter({ fetcher: async (url) => jsonResponse({}, 503) });
 
   await assert.rejects(
-    () => adapter.findByOrgNumber('912345678'),
+    () => adapter.findByOrgNumber('999999999'),
     (error: unknown) => error instanceof EnhetsregisteretError
       && error.status === 503
-      && error.url.endsWith('/enheter/912345678'),
+      && error.url.endsWith('/enheter/999999999'),
   );
 });

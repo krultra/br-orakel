@@ -14,7 +14,7 @@ const options: DatasetImportOptions = {
 };
 
 if (!options.input) {
-  console.error('Bruk: npm run import -- --input ./data/raw/enheter.json --output ./data/warehouse/reporting.duckdb [--org-number 912345678]');
+  console.error('Bruk: npm run import -- --input ./data/raw/enheter.json --output ./data/warehouse/reporting.duckdb [--org-number 999999999]');
   process.exit(1);
 }
 

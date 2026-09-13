@@ -21,10 +21,11 @@ enhet og registreringsdato. Råresponsen lagres ikke i domenemodellen.
 
 ## Aktivere live-oppslag
 
-Mockmodus er standard:
+Live-modus er anbefalt når nettverket er tilgjengelig. Mockmodus brukes for
+reproduserbar demo og for ideer som ikke finnes i kildedataene ennå:
 
 ```bash
-ENHETSREGISTERET_MODE=mock npm run dev
+ENHETSREGISTERET_MODE=mock OPPGAVEREGISTERET_MODE=mock npm run dev
 ```
 
 Kjør med ekte BRREG-data sammen med ekte Oppgaveregister-data:
@@ -44,7 +45,8 @@ ENHETSREGISTERET_MODE=live OPPGAVEREGISTERET_MODE=live npm run dev
 ```
 
 Test for eksempel virksomheten i brukergrensesnittet med et organisasjonsnummer
-fra Enhetsregisteret. API-et vårt rapporterer leverandørvalg via
+eller et navn fra Enhetsregisteret. Mockvirksomheten kan velges med
+`999999999`. API-et vårt rapporterer leverandørvalg via
 `GET /api/health`.
 
 ## Feil og status

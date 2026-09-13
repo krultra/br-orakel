@@ -9,14 +9,15 @@ import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adap
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 
 const app = Fastify({ logger: true });
-const organizationProvider = process.env.ENHETSREGISTERET_MODE ?? 'mock';
+const organizationProvider = process.env.ENHETSREGISTERET_MODE ?? 'live';
+const obligationProvider = process.env.OPPGAVEREGISTERET_MODE ?? 'live';
 const organizations = organizationProvider === 'live'
   ? new EnhetsregisteretAdapter({
       baseUrl: process.env.ENHETSREGISTERET_API,
       timeoutMs: Number(process.env.ENHETSREGISTERET_TIMEOUT_MS ?? 10000),
     })
   : new MockOrganizationAdapter();
-const obligations = process.env.OPPGAVEREGISTERET_MODE === 'live'
+const obligations = obligationProvider === 'live'
   ? new OppgaveregisteretAdapter({
       baseUrl: process.env.OPPGAVEREGISTERET_API,
       pageSize: Number(process.env.OPPGAVEREGISTERET_PAGE_SIZE ?? 100),
@@ -36,7 +37,7 @@ const chat = aiProvider === 'openai'
       storeResponses: process.env.OPENAI_STORE_RESPONSES === 'true',
     })
   : new MockChatAdapter();
-const runtimeMode = process.env.OPPGAVEREGISTERET_MODE === 'live' ? 'oppgaveregisteret' : process.env.APP_MODE ?? 'mock';
+const runtimeMode = obligationProvider === 'live' ? 'oppgaveregisteret' : process.env.APP_MODE ?? 'mock';
 
 const sourcesForOrganization = async (query: string, orgNumber?: string) => {
   const availableSources = await sources.search(query);
@@ -53,7 +54,18 @@ const sourcesForOrganization = async (query: string, orgNumber?: string) => {
 
 await app.register(cors, { origin: true });
 
-app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider }));
+app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider, obligationProvider }));
+
+app.get('/api/organizations/search', async (request, reply) => {
+  const { q = '' } = request.query as { q?: string };
+  if (!q.trim()) return [];
+  try {
+    return await organizations.searchByName(q);
+  } catch (error) {
+    if (error instanceof EnhetsregisteretError) return reply.code(502).send({ code: 'ENHETSREGISTERET_UNAVAILABLE', message: 'Enhetsregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
+    throw error;
+  }
+});
 
 app.get('/api/organizations/:orgNumber', async (request, reply) => {
   const { orgNumber } = request.params as { orgNumber: string };
@@ -120,7 +132,7 @@ app.patch('/api/reported-requirements/:id', async (request, reply) => {
 });
 
 app.post('/api/chat', async (request, reply) => {
-  const { question, orgNumber = '912345678' } = request.body as { question?: string; orgNumber?: string };
+  const { question, orgNumber = '' } = request.body as { question?: string; orgNumber?: string };
   if (!question?.trim()) return reply.code(400).send({ message: 'Spørsmålet kan ikke være tomt.' });
   try {
     const organization = await organizations.findByOrgNumber(orgNumber);

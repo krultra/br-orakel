@@ -5,7 +5,7 @@ import { MockObligationAdapter, MockOrganizationAdapter, MockSourceAdapter } fro
 import { OpenAIChatAdapter, OpenAIChatError, type OpenAIResponseClient } from '../src/data/openai-chat-adapter.js';
 
 test('OpenAIChatAdapter sender rik virksomhetskontekst og verifiserer kilde-ID-er', async () => {
-  const organization = await new MockOrganizationAdapter().findByOrgNumber('912345678');
+  const organization = await new MockOrganizationAdapter().findByOrgNumber('999999999');
   assert.ok(organization);
   const obligations = await new MockObligationAdapter().listForOrganization(organization);
   const sources = await new MockSourceAdapter().search('');

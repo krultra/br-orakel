@@ -1,7 +1,7 @@
 import type { Obligation, Organization, Source, UserReportedRequirement } from '../domain/types.js';
 
 export const mockOrganization: Organization = {
-  orgNumber: '912345678',
+  orgNumber: '999999999',
   name: 'Fjordgløtt Mat og Handel AS',
   organizationForm: 'AS',
   organizationFormName: 'Aksjeselskap',
@@ -32,7 +32,7 @@ export const mockSources: Source[] = [
   source({
     id: 'source-brreg-org',
     title: 'Enhetsregisteret – virksomhetsopplysninger',
-    url: 'https://data.brreg.no/enhetsregisteret/api/enheter/912345678',
+    url: 'https://data.brreg.no/enhetsregisteret/api/enheter/999999999',
     sourceType: 'register',
     officiality: 'OFFICIAL',
     relevantExcerpt: 'Virksomheten er registrert som aksjeselskap med næringskodene 47.110 og 56.101.',

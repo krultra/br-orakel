@@ -7,7 +7,8 @@ responsstrukturen kan derfor endres. Se den [offisielle API-beskrivelsen](https:
 
 ## Aktivere live-modus
 
-Mockmodus er standard og brukes når `OPPGAVEREGISTERET_MODE` ikke er `live`.
+Live-modus anbefales når nettverket er tilgjengelig. Mockmodus brukes for
+reproduserbar demo og kan aktiveres eksplisitt med `OPPGAVEREGISTERET_MODE=mock`.
 For lokal kjøring kan live-modus aktiveres slik:
 
 ```bash

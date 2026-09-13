@@ -9,6 +9,7 @@ import type {
 
 export interface OrganizationAdapter {
   findByOrgNumber(orgNumber: string): Promise<Organization | null>;
+  searchByName(name: string, limit?: number): Promise<Organization[]>;
 }
 
 export interface ObligationAdapter {

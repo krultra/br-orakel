@@ -3,12 +3,17 @@ import test from 'node:test';
 import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
 
 test('mock adapter finner demo-virksomheten på organisasjonsnummer', async () => {
-  const organization = await new MockOrganizationAdapter().findByOrgNumber('912 345 678');
+  const organization = await new MockOrganizationAdapter().findByOrgNumber('999 999 999');
   assert.equal(organization?.name, 'Fjordgløtt Mat og Handel AS');
 });
 
+test('mock adapter finner demo-virksomheten på navn', async () => {
+  const results = await new MockOrganizationAdapter().searchByName('fjordgløtt');
+  assert.equal(results[0]?.orgNumber, '999999999');
+});
+
 test('oppgaver og chat bruker samme virksomhetskontekst', async () => {
-  const organization = await new MockOrganizationAdapter().findByOrgNumber('912345678');
+  const organization = await new MockOrganizationAdapter().findByOrgNumber('999999999');
   assert.ok(organization);
   const obligations = await new MockObligationAdapter().listForOrganization(organization);
   assert.equal(obligations.length, 10);

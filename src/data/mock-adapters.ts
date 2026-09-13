@@ -4,7 +4,15 @@ import { mockObligations, mockOrganization, mockReports, mockSources } from './m
 
 export class MockOrganizationAdapter implements OrganizationAdapter {
   async findByOrgNumber(orgNumber: string): Promise<Organization | null> {
-    return orgNumber.replace(/\s/g, '') === mockOrganization.orgNumber ? mockOrganization : null;
+    return orgNumber.replace(/\s/g, '') === mockOrganization.orgNumber ? structuredClone(mockOrganization) : null;
+  }
+
+  async searchByName(name: string, limit = 10): Promise<Organization[]> {
+    const normalized = name.trim().toLocaleLowerCase('nb-NO');
+    if (!normalized) return [];
+    return normalized && mockOrganization.name.toLocaleLowerCase('nb-NO').includes(normalized)
+      ? [structuredClone(mockOrganization)].slice(0, Math.max(1, limit))
+      : [];
   }
 }
 

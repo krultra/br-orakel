@@ -4,7 +4,7 @@ import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/op
 import type { Organization } from '../src/domain/types.js';
 
 const organization: Organization = {
-  orgNumber: '912345678',
+  orgNumber: '999999999',
   name: 'Fjordgløtt Mat og Handel AS',
   organizationForm: 'AS',
   industryCodes: ['47.110', '56.101'],

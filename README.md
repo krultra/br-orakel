@@ -17,7 +17,8 @@ Oppgaveregisteret behandles som en offisiell, men pilotpreget registerkilde. API
 Oppgaveregisteret-adapteren er implementert og kan aktiveres med
 `OPPGAVEREGISTERET_MODE=live`. Enhetsregisteret-adapteren kan aktiveres med
 `ENHETSREGISTERET_MODE=live`, slik at organisasjonsnummeret slås opp hos BRREG
-før oppgavene filtreres. Mockmodus er fortsatt standard for demo og CI. Se
+før oppgavene filtreres. Live-modus er anbefalt for MVP-arbeid; mockmodus kan
+aktiveres eksplisitt for demo og CI. Se
 [dokumentasjonen for Oppgaveregisteret](docs/OPPGAVEREGISTERET.md) og
 [Enhetsregisteret-integrasjonen](docs/ENHETSREGISTERET.md).
 
@@ -30,7 +31,9 @@ npm install
 npm run dev
 ```
 
-Åpne <http://localhost:5173>. Demo-virksomheten er `912345678`. API-et kjører på <http://localhost:3001>.
+Åpne <http://localhost:5173>. Med live-modus kan du søke på virksomhetsnavn
+eller organisasjonsnummer i BRREG. Mockvirksomheten er `999999999`. API-et
+kjører på <http://localhost:3001>.
 
 ## Samarbeid med flere agenter
 
@@ -56,7 +59,7 @@ npm run build
 
 ## Demo-reise
 
-1. Velg `912345678`.
+1. Søk etter en virksomhet på navn eller organisasjonsnummer. Bruk `999999999` for mockvirksomheten.
 2. Åpne en oppgave i årshjulet eller arbeidslisten.
 3. Se status, tidsbruk, nødvendige data, lovhjemmel og kilde.
 4. Spør KI-losen om mva, ansatte eller årsrapportering. Svarene viser kilde og usikkerhet.
@@ -66,8 +69,8 @@ npm run build
 ## Adapterarkitektur
 
 `src/domain/adapters.ts` definerer fem utskiftbare kontrakter. Mockadapterne er
-standard i MVP-en, mens `OppgaveregisteretAdapter` kan aktiveres i live-modus.
-Senere kan disse utvides med:
+tilgjengelige som reproduserbar fallback, mens `EnhetsregisteretAdapter` og
+`OppgaveregisteretAdapter` brukes i live-modus. Senere kan disse utvides med:
 
 - `EnhetsregisteretAdapter`: oppslag på organisasjonsnummer eller batchimport av arrangørens JSON/CSV.
 - `OfficialSourceAdapter`: godkjent allowlist for Altinn, BR, Skatteetaten, Lovdata, Doffin og andre avtalte kilder.
@@ -89,7 +92,7 @@ Offisielle opplysninger, brukerinnspill og KI-forslag har ulike `TrustLevel`-ver
 Se [data/README.md](data/README.md). Ikke legg et hackathon-datasett på rundt 35 GB i Git eller nettleseren. Bruk:
 
 ```bash
-npm run import -- --input ./data/raw/datasett.json --output ./data/warehouse/datasett.duckdb --org-number 912345678
+npm run import -- --input ./data/raw/datasett.json --output ./data/warehouse/datasett.duckdb --org-number 999999999
 ```
 
 Importøren leser uten å samle hele datasettet i JavaScript-minnet, gjør et organisasjonsnummerfilter når feltet finnes, og skriver også Parquet for videre spørringer.
