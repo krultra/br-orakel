@@ -1,4 +1,11 @@
-import type { ChatAnswer, Obligation, Organization, Source, UserReportedRequirement } from './types.js';
+import type {
+  ChatAnswer,
+  Obligation,
+  Organization,
+  Source,
+  TrustLevel,
+  UserReportedRequirement,
+} from './types.js';
 
 export interface OrganizationAdapter {
   findByOrgNumber(orgNumber: string): Promise<Organization | null>;
@@ -19,6 +26,28 @@ export interface RequirementAdapter {
   updateStatus(id: string, reviewStatus: UserReportedRequirement['reviewStatus']): Promise<UserReportedRequirement | null>;
 }
 
+/**
+ * Evidence selected by the application for one answer request.
+ * This is deliberately provider-neutral: an LLM adapter must not decide what
+ * counts as an official source by itself.
+ */
+export interface KnowledgeContextItem {
+  id: string;
+  title: string;
+  text: string;
+  trustLevel: TrustLevel;
+  sourceId?: string;
+}
+
+export interface ChatContext {
+  organization: Organization;
+  obligations: Obligation[];
+  sources: Source[];
+  reportedRequirements?: UserReportedRequirement[];
+  /** Reserved for future retrieval from DuckDB/Parquet or a knowledge index. */
+  additionalContext?: KnowledgeContextItem[];
+}
+
 export interface ChatAdapter {
-  answer(question: string, org: Organization, obligations: Obligation[]): Promise<ChatAnswer>;
+  answer(question: string, context: ChatContext): Promise<ChatAnswer>;
 }

@@ -1,4 +1,4 @@
-import type { ChatAdapter, ObligationAdapter, OrganizationAdapter, RequirementAdapter, SourceAdapter } from '../domain/adapters.js';
+import type { ChatAdapter, ChatContext, ObligationAdapter, OrganizationAdapter, RequirementAdapter, SourceAdapter } from '../domain/adapters.js';
 import type { Obligation, Organization, Source, UserReportedRequirement } from '../domain/types.js';
 import { mockObligations, mockOrganization, mockReports, mockSources } from './mock-data.js';
 
@@ -49,7 +49,8 @@ export class MockRequirementAdapter implements RequirementAdapter {
 }
 
 export class MockChatAdapter implements ChatAdapter {
-  async answer(question: string, _org: Organization, obligations: Obligation[]) {
+  async answer(question: string, context: ChatContext) {
+    const { obligations } = context;
     const normalized = question.toLowerCase();
     const match = normalized.includes('mva') ? obligations.find((item) => item.id === 'obl-mva-termin-4') : normalized.includes('ansatt') || normalized.includes('lønn') ? obligations.find((item) => item.id === 'obl-a-melding') : obligations.find((item) => item.id === 'obl-aarsregnskap');
     const sourceIds = match?.sourceLinks ?? ['source-oppgaveregisteret'];

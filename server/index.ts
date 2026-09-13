@@ -4,6 +4,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
+import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 
 const app = Fastify({ logger: true });
@@ -17,12 +18,22 @@ const obligations = process.env.OPPGAVEREGISTERET_MODE === 'live'
   : new MockObligationAdapter();
 const sources = new MockSourceAdapter();
 const requirements = new MockRequirementAdapter();
-const chat = new MockChatAdapter();
+const aiProvider = process.env.AI_PROVIDER ?? 'mock';
+const chat = aiProvider === 'openai'
+  ? new OpenAIChatAdapter({
+      apiKey: process.env.OPENAI_API_KEY,
+      model: process.env.OPENAI_MODEL,
+      maxOutputTokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS ?? 12000),
+      maxContextChars: Number(process.env.OPENAI_MAX_CONTEXT_CHARS ?? 1000000),
+      timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS ?? 60000),
+      storeResponses: process.env.OPENAI_STORE_RESPONSES === 'true',
+    })
+  : new MockChatAdapter();
 const runtimeMode = process.env.OPPGAVEREGISTERET_MODE === 'live' ? 'oppgaveregisteret' : process.env.APP_MODE ?? 'mock';
 
 await app.register(cors, { origin: true });
 
-app.get('/api/health', async () => ({ ok: true, mode: runtimeMode }));
+app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider }));
 
 app.get('/api/organizations/:orgNumber', async (request, reply) => {
   const { orgNumber } = request.params as { orgNumber: string };
@@ -80,12 +91,32 @@ app.patch('/api/reported-requirements/:id', async (request, reply) => {
   return updated ? updated : reply.code(404).send({ message: 'Innspillet finnes ikke.' });
 });
 
-app.post('/api/chat', async (request) => {
-  const { question, orgNumber = '912345678' } = request.body as { question: string; orgNumber?: string };
+app.post('/api/chat', async (request, reply) => {
+  const { question, orgNumber = '912345678' } = request.body as { question?: string; orgNumber?: string };
+  if (!question?.trim()) return reply.code(400).send({ message: 'Spørsmålet kan ikke være tomt.' });
   const organization = await organizations.findByOrgNumber(orgNumber);
   if (!organization) return { answer: 'Velg en virksomhet før du spør.', uncertainty: 'Ingen virksomhet valgt.', sourceIds: [], followUpQuestions: [] };
-  const organizationObligations = await obligations.listForOrganization(organization);
-  return chat.answer(question, organization, organizationObligations);
+  try {
+    const [organizationObligations, availableSources, reportedRequirements] = await Promise.all([
+      obligations.listForOrganization(organization),
+      sources.search(''),
+      requirements.list(),
+    ]);
+    return await chat.answer(question, {
+      organization,
+      obligations: organizationObligations,
+      sources: availableSources,
+      reportedRequirements,
+    });
+  } catch (error) {
+    if (error instanceof OpenAIChatError) {
+      return reply.code(502).send({ code: 'AI_UNAVAILABLE', message: error.message });
+    }
+    if (error instanceof OppgaveregisteretError) {
+      return reply.code(502).send({ code: 'OPPGAVEREGISTERET_UNAVAILABLE', message: 'Oppgaveregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
+    }
+    throw error;
+  }
 });
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));

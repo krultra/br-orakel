@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter } from '../src/data/mock-adapters.js';
+import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
 
 test('mock adapter finner demo-virksomheten på organisasjonsnummer', async () => {
   const organization = await new MockOrganizationAdapter().findByOrgNumber('912 345 678');
@@ -12,7 +12,8 @@ test('oppgaver og chat bruker samme virksomhetskontekst', async () => {
   assert.ok(organization);
   const obligations = await new MockObligationAdapter().listForOrganization(organization);
   assert.equal(obligations.length, 10);
-  const answer = await new MockChatAdapter().answer('Hva gjelder for ansatte?', organization, obligations);
+  const sources = await new MockSourceAdapter().search('');
+  const answer = await new MockChatAdapter().answer('Hva gjelder for ansatte?', { organization, obligations, sources });
   assert.ok(answer.sourceIds.length > 0);
   assert.match(answer.answer, /A-meldingen/);
 });

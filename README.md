@@ -69,8 +69,16 @@ Senere kan disse utvides med:
 
 - `EnhetsregisteretAdapter`: oppslag på organisasjonsnummer eller batchimport av arrangørens JSON/CSV.
 - `OfficialSourceAdapter`: godkjent allowlist for Altinn, BR, Skatteetaten, Lovdata, Doffin og andre avtalte kilder.
-- `RetrievalChatAdapter`: RAG/LLM bak Fastify, med obligatoriske kilde-ID-er og usikkerhet i svarkontrakten.
+- `OpenAIChatAdapter`: hosted AI bak Fastify med strukturert svar, kilde-ID-validering og eksplisitt usikkerhet.
+- `RetrievalChatAdapter`: framtidig retrieval-løsning som velger relevante evidensbiter fra DuckDB/Parquet eller et kunnskapsindeks før en provider-adapter kalles.
 - `RequirementReviewAdapter`: varig lagring, revisjonslogg og saksbehandlerkø.
+
+KI-integrasjonen er dokumentert i [docs/AI.md](docs/AI.md). Mockmodus er
+standard. Hosted OpenAI-modus aktiveres eksplisitt med `AI_PROVIDER=openai` og
+en runtime-hemmelighet for `OPENAI_API_KEY`; demoens standardmodell er
+`gpt-5.6-luna`. Kontekst sendes som et eksplisitt evidenssett, mens framtidig
+retrieval kan fylle `additionalContext` uten å gjøre KI-tjenesten til system of
+record.
 
 Offisielle opplysninger, brukerinnspill og KI-forslag har ulike `TrustLevel`-verdier i domenemodellen. KI får ikke skrive til `Obligation` direkte.
 
