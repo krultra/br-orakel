@@ -120,8 +120,23 @@ function Overview({ organization, obligations, allObligations, sources, selected
 
 function YearWheel({ obligations, selectedId, onSelect }: { obligations: Obligation[]; selectedId?: string; onSelect: (id: string) => void }) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
-  const grouped = useMemo(() => months.map((month, index) => ({ month, items: obligations.filter((item) => { const date = item.reportingWindowStart ?? item.deadline; return date ? new Date(date).getMonth() === index : false; }) })), [obligations]);
-  return <div className="year-wheel">{grouped.map(({ month, items }) => <div className={`month-cell ${items.length ? 'has-items' : ''}`} key={month}><span className="month-label">{month}</span>{items.map((item) => <button key={item.id} className={`calendar-item ${statusClass[item.status]} ${selectedId === item.id ? 'is-selected' : ''}`} onClick={() => onSelect(item.id)}><span className="calendar-dot" />{item.name}<small>{formatDate(item.deadline)}</small></button>)}</div>)}</div>;
+  const grouped = useMemo(() => {
+    const buckets = months.map((month) => ({ month, items: [] as Array<{ item: Obligation; date?: string }> }));
+    const noDateItems: Array<{ item: Obligation; date?: string }> = [];
+    for (const item of obligations) {
+      const dates = item.deadlineDates?.length ? item.deadlineDates : [item.reportingWindowStart ?? item.deadline].filter((date): date is string => Boolean(date));
+      if (dates.length === 0) {
+        noDateItems.push({ item });
+        continue;
+      }
+      for (const date of dates) {
+        const monthIndex = new Date(date).getMonth();
+        if (monthIndex >= 0 && monthIndex < months.length) buckets[monthIndex].items.push({ item, date });
+      }
+    }
+    return [...buckets, { month: 'Uten fast frist', items: noDateItems }];
+  }, [obligations]);
+  return <div className="year-wheel">{grouped.map(({ month, items }) => <div className={`month-cell ${items.length ? 'has-items' : ''}`} key={month}><span className="month-label">{month}</span>{items.map(({ item, date }) => <button key={`${item.id}-${date ?? 'no-date'}`} className={`calendar-item ${statusClass[item.status]} ${selectedId === item.id ? 'is-selected' : ''}`} onClick={() => onSelect(item.id)}><span className="calendar-dot" />{item.name}<small>{formatDate(date ?? item.deadline)}</small></button>)}</div>)}</div>;
 }
 
 function ObligationList({ obligations, selectedId, onSelect }: { obligations: Obligation[]; selectedId?: string; onSelect: (id: string) => void }) {

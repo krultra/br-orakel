@@ -56,6 +56,8 @@ export interface Obligation {
   reportingWindowStart?: string;
   reportingWindowEnd?: string;
   deadline?: string;
+  /** All known recurring deadline dates for the current reporting year. */
+  deadlineDates?: string[];
   frequency: string;
   estimatedMinutes: number;
   requiredData: string[];

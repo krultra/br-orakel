@@ -34,11 +34,25 @@ const records = (value: unknown): JsonRecord[] => Array.isArray(value) ? value.f
 
 const unique = (values: Array<string | undefined>): string[] => [...new Set(values.filter((value): value is string => Boolean(value)))];
 
+const usableIndustryCode = (value: string): boolean => /^\d{2}\.\d{1,3}$/.test(value) && value !== '00.000';
+
 const nestedText = (value: unknown, key: string): string | undefined => isRecord(value) ? text(value[key]) : undefined;
 
 const categoryValues = (value: unknown): string[] => records(value).flatMap((item) => [text(item.verdi), text(item.kode)]).filter((value): value is string => Boolean(value));
 
 const formUsage = (value: unknown): JsonRecord[] => records(value);
+
+const deadlineDates = (usage: JsonRecord[], year = new Date().getFullYear()): string[] => unique(
+  usage.flatMap((item) => records(item.tidsfrister).map((deadline) => {
+    const day = text(deadline.date);
+    const month = text(deadline.month);
+    if (!day || !month) return undefined;
+    const dayNumber = Number(day);
+    const monthNumber = Number(month);
+    if (!Number.isInteger(dayNumber) || !Number.isInteger(monthNumber) || monthNumber < 1 || monthNumber > 12 || dayNumber < 1 || dayNumber > 31) return undefined;
+    return `${year}-${String(monthNumber).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+  })),
+).sort();
 
 const parsePage = (payload: unknown): JsonRecord[] => {
   if (!isRecord(payload) || !Array.isArray(payload.skjema)) {
@@ -76,6 +90,7 @@ function mapObligation(raw: JsonRecord): Obligation | null {
   const eventUsage = usage.find((item) => text(item.navn)?.toLowerCase().includes('hendelsesrapportering'));
   const eventLabel = nestedText(eventUsage?.hendelseskategori, 'navn');
   const reportingForms = categoryValues(raw.rapporteringsformer);
+  const knownDeadlineDates = deadlineDates(usage);
   const description = unique([purpose, ...usage.map((item) => text(item.kommentar))]).join(' ');
   const officialStatus: TrustLevel = text(raw.statustype)?.toUpperCase() === 'PUBLISERT' ? 'OFFICIAL' : 'UNDER_REVIEW';
   const electronicMinutes = isRecord(raw.tidsbruk) && typeof raw.tidsbruk.elektronisk === 'number' ? raw.tidsbruk.elektronisk : undefined;
@@ -88,6 +103,9 @@ function mapObligation(raw: JsonRecord): Obligation | null {
     responsibleAgency,
     legalBasis: legalBasis.join('; ') || 'Ikke oppgitt',
     targetCriteria,
+    reportingWindowStart: knownDeadlineDates[0],
+    deadline: knownDeadlineDates[0],
+    deadlineDates: knownDeadlineDates,
     frequency: eventUsage ? 'Ved hendelse' : 'Ikke angitt',
     estimatedMinutes: electronicMinutes ?? paperMinutes ?? 0,
     requiredData,
@@ -121,10 +139,11 @@ export class OppgaveregisteretAdapter implements ObligationAdapter {
 
     // The pilot API currently rejects multiple comma-separated industry codes.
     // Query each code separately and deduplicate by register id below.
-    const industryCodes = organization.industryCodes.length > 0 ? organization.industryCodes : [undefined];
+    const industryCodes = organization.industryCodes.filter(usableIndustryCode);
+    const industryQueries: Array<string | undefined> = industryCodes.length > 0 ? industryCodes : [undefined];
     let successfulIndustryQueries = 0;
     let lastIndustryFilterError: unknown;
-    for (const industryCode of industryCodes) {
+    for (const industryCode of industryQueries) {
       let start = 0;
       try {
         for (let page = 0; page < this.maxPages; page += 1) {

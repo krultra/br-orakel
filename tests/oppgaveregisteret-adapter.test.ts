@@ -117,3 +117,36 @@ test('adapteren beholder treff når én av flere næringskoder avvises av pilot-
   assert.deepEqual(requestedCodes, ['47.110', '56.101']);
   assert.equal(obligations.length, 1);
 });
+
+test('adapteren faller tilbake til organisasjonsform når BRREG har placeholder-koden 00.000', async () => {
+  const requestedUrls: string[] = [];
+  const adapter = new OppgaveregisteretAdapter({
+    fetcher: async (input) => {
+      requestedUrls.push(input);
+      return jsonResponse({ start: 0, antall: 1, maxAntall: 160, skjema: [rawForm()] });
+    },
+  });
+
+  const obligations = await adapter.listForOrganization({ ...organization, industryCodes: ['00.000'] });
+
+  assert.equal(obligations.length, 1);
+  assert.equal(new URL(requestedUrls[0]).searchParams.has('naeringskoder'), false);
+});
+
+test('adapteren mapper Oppgaveregisterets tidsfrister til årshjulet', async () => {
+  const adapter = new OppgaveregisteretAdapter({
+    fetcher: async () => jsonResponse({
+      start: 0,
+      antall: 1,
+      maxAntall: 160,
+      skjema: [rawForm({
+        bruksomraader: [{ navn: 'Periodisk rapportering', tidsfrister: [{ date: '05', month: '09' }, { date: '05', month: '10' }] }],
+      })],
+    }),
+  });
+
+  const [obligation] = await adapter.listForOrganization(organization);
+  const year = new Date().getFullYear();
+  assert.deepEqual(obligation.deadlineDates, [`${year}-09-05`, `${year}-10-05`]);
+  assert.equal(obligation.deadline, `${year}-09-05`);
+});
