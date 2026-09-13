@@ -40,16 +40,14 @@ Demo kan startes fra `docker-compose.yml`:
 ```bash
 docker compose -p br-orakel-demo \
   -f docker-compose.yml \
-  -f deploy/docker-compose.pi-tok.yml \
   up --build -d
 ```
 
 Testversjonen bruker `docker-compose.test.yml` og sin egen datamappe:
 
 ```bash
-docker compose -p br-orakel-test \
+BR_ORAKEL_HOST_PORT=3020 docker compose -p br-orakel-test \
   -f docker-compose.test.yml \
-  -f deploy/docker-compose.pi-tok-test.yml \
   up --build -d
 ```
 
@@ -126,7 +124,7 @@ Opprett først DNS når serveren er valgt. Typisk:
 
 HTTPS bør termineres i Caddy eller Nginx. Appen lytter internt på HTTP-port 3001/3002. DNS-endring, TLS og åpning av porter krever eksplisitt godkjenning.
 
-DNS peker bare trafikken til pi-tok. Caddy må også vite hvilken lokal port hvert subdomene skal videresende til. Overlayet binder demo til `127.0.0.1:3010` og test til `127.0.0.1:3020`. Et versjonert eksempel ligger i `deploy/Caddyfile.br-orakel.example`:
+DNS peker bare trafikken til pi-tok. Caddy må også vite hvilken lokal port hvert subdomene skal videresende til. På pi-tok bindes demo til `127.0.0.1:3010` og test til `127.0.0.1:3020` gjennom `BR_ORAKEL_HOST_PORT`. Et versjonert eksempel ligger i `deploy/Caddyfile.br-orakel.example`:
 
 ```caddyfile
 demo.krultra.no {

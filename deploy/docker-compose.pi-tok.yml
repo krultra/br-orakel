@@ -1,5 +1,0 @@
-# Pi-tok overlay. Keep br-orakel behind Caddy on localhost-only ports.
-services:
-  br-orakel:
-    ports:
-      - "127.0.0.1:3010:3001"

@@ -27,20 +27,18 @@ docker compose -p br-orakel-test -f docker-compose.test.yml up --build -d
 
 Da blir testappen tilgjengelig på <http://localhost:3002>.
 
-På pi-tok brukes et eget overlay fordi port 3001 allerede kan være i bruk av
-andre tjenester. Demo bindes kun til localhost på port 3010, og test bindes
-kun til localhost på port 3020. Caddy videresender deretter subdomenene til
-disse portene:
+På pi-tok brukes miljøvariabelen `BR_ORAKEL_HOST_PORT` fordi port 3001 allerede
+kan være i bruk av andre tjenester. Demo bindes kun til localhost på port 3010,
+og test bindes kun til localhost på port 3020. Caddy videresender deretter
+subdomenene til disse portene:
 
 ```bash
 docker compose -p br-orakel-demo \
   -f docker-compose.yml \
-  -f deploy/docker-compose.pi-tok.yml \
   up --build -d
 
-docker compose -p br-orakel-test \
+BR_ORAKEL_HOST_PORT=3020 docker compose -p br-orakel-test \
   -f docker-compose.test.yml \
-  -f deploy/docker-compose.pi-tok-test.yml \
   up --build -d
 ```
 
@@ -72,7 +70,7 @@ docker compose up
 - **Image:** den byggede pakken som kan startes.
 - **Container:** en kjørende instans av et image.
 - **Compose:** prosjektfilen som beskriver service, porter, miljøvariabler og volumes.
-- **Port:** forbindelsen mellom vertsmaskinen og applikasjonen i containeren. I lokal Compose er dette `3001:3001`; på pi-tok bruker overlayet `127.0.0.1:3010:3001` og `127.0.0.1:3020:3001`.
+- **Port:** forbindelsen mellom vertsmaskinen og applikasjonen i containeren. I lokal Compose er dette `127.0.0.1:3001:3001`; på pi-tok settes `BR_ORAKEL_HOST_PORT` til 3010 eller 3020.
 - **Volume/mount:** en mappe som ligger utenfor containerens midlertidige lagring. Her brukes `./data` for datafiler.
 
 ## Hackathon-regel

@@ -1,5 +1,0 @@
-# Pi-tok overlay for the separate test stack.
-services:
-  br-orakel-test:
-    ports:
-      - "127.0.0.1:3020:3001"

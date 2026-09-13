@@ -2,7 +2,7 @@ services:
   br-orakel-test:
     build: .
     ports:
-      - "3002:3001"
+      - "${BR_ORAKEL_BIND_ADDRESS:-127.0.0.1}:${BR_ORAKEL_HOST_PORT:-3002}:3001"
     environment:
       NODE_ENV: production
       PORT: 3001
