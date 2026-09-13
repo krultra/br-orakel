@@ -105,13 +105,17 @@ dedikerte katalogen med:
 
 Skriptet bruker `pi-tok` og `/home/tkruke/services/br-orakel` som standard.
 De kan overstyres med `BR_ORAKEL_REMOTE_HOST` og `BR_ORAKEL_REMOTE_DIR`.
-Det endrer ikke Caddy eller DNS. Verifiser først containeren direkte:
+Det bygger og starter både demo (`br-orakel-demo` på port 3010) og test
+(`br-orakel-test` på port 3020). Det endrer ikke Caddy eller DNS. Verifiser
+først containerne direkte:
 
 ```bash
 ssh pi-tok 'curl --fail --silent http://127.0.0.1:3010/api/health'
+ssh pi-tok 'curl --fail --silent http://127.0.0.1:3020/api/health'
 ```
 
-Forventet svar er `{"ok":true,"mode":"mock"}`.
+Forventet svar viser `organizationProvider` og `obligationProvider` som
+`live` med mindre de overstyres eksplisitt.
 
 Dette bør gjøres i et vedlikeholdsvindu. Ikke endre DNS eller eksisterende produksjonsproxy uten eksplisitt godkjenning. Agentene skal bare forberede konfigurasjon i repoet; en menneskelig eier utfører endringen.
 
