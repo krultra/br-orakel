@@ -1,0 +1,13 @@
+# Eksempel for pi-tok.
+# Flett dette inn i eksisterende Caddyfile etter at hele filen er gjennomgått.
+# Ikke erstatt andre krultra.no-ruter.
+
+demo.krultra.no {
+    encode gzip
+    reverse_proxy 127.0.0.1:3001
+}
+
+test.krultra.no {
+    encode gzip
+    reverse_proxy 127.0.0.1:3002
+}

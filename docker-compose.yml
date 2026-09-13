@@ -1,0 +1,13 @@
+services:
+  br-orakel:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+      APP_MODE: mock
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

@@ -1,0 +1,8 @@
+node_modules
+dist
+.git
+.gitignore
+data/raw
+data/warehouse/*.duckdb
+data/warehouse/*.parquet
+Informasjon om Hackathon AIF 2026.pdf

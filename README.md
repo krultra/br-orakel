@@ -1,0 +1,140 @@
+# br-orakel – Rapporteringsløsen
+
+MVP for en KI-assistert rapporteringslos for norske virksomheter. GitHub-repoet heter `br-orakel`; Rapporteringsløsen er foreløpig produkt-/arbeidsnavn. Marit avklarer senere hva «ORAKEL» skal stå for. Første leveranse er en selvstendig demo med mockdata, men med adaptergrenser for Oppgaveregisteret, Enhetsregisteret, kilder, KI og brukerinnspill.
+
+## Valgt teknologi
+
+- TypeScript + React + Vite for en rask, tilgjengelig frontend.
+- `@digdir/designsystemet-react` med `@digdir/designsystemet-css` og CSS-pakkens standardtema for komponenter, tokens og universell utforming.
+- Fastify som lett API-lag. Frontend bruker `/api` og samme kontrakter i mockmodus og ved senere ekte integrasjoner.
+- DuckDB som førstevalg for lokale analyser av store JSON/CSV-filer. Importøren bruker DuckDB sine filscannere og skriver Parquet.
+- Docker Compose for lokal kjøring og en midlertidig, isolert hackathon-stack på `pi-tok`.
+
+Designsystemet-integrasjonen følger den aktuelle React-pakken fra Digdir: `@digdir/designsystemet-react` er dagens pakke, mens `@digdir/design-system-react` er legacy. CSS og standardtema importeres én gang i `src/main.tsx`; egendefinert tema kan senere bygges med Theme Builder. Se [Designsystemet](https://designsystemet.no/no/) og [React-pakken](https://www.npmjs.com/package/@digdir/designsystemet-react).
+
+Oppgaveregisteret behandles som en offisiell, men pilotpreget registerkilde. API-dokumentasjonen viser støtte for JSON/XML, paginering og filtrering på blant annet organisasjonsform, næringskode, arbeidsgiver, etat, lovhjemmel, vedleggskrav og rapporteringsform: <https://data.brreg.no/oppgaveregisteret/api/docs/index.html>.
+
+## Kom i gang
+
+Krever Node.js 22+.
+
+```bash
+npm install
+npm run dev
+```
+
+Åpne <http://localhost:5173>. Demo-virksomheten er `912345678`. API-et kjører på <http://localhost:3001>.
+
+## Samarbeid med flere agenter
+
+Les [AGENTS.md](AGENTS.md) før du arbeider i repoet. Den beskriver fil-eierskap, Codex-/Claude Code-handoff, testkrav og regler for parallelt arbeid. [CONTRIBUTING.md](CONTRIBUTING.md) beskriver utviklerflyten, mens [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) beskriver Git worktrees, branches, PR-er og overtakelse mellom agenter.
+
+Opprett en isolert arbeidskopi slik:
+
+```bash
+./scripts/new-worktree.sh agent/frontend/calendar-list ../worktrees/calendar origin/main
+cd ../worktrees/calendar
+npm install
+```
+
+Claude Code kan overta som hovedagent ved å lese `AGENTS.md`, `CLAUDE.md` og `docs/AGENT_WORKFLOW.md`, kontrollere branch-status og fortsette på en eksisterende branch. Hovedagenten integrerer små commits via PR eller cherry-pick og kjører samlet verifikasjon før merge.
+
+Kvalitetssjekker:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+## Demo-reise
+
+1. Velg `912345678`.
+2. Åpne en oppgave i årshjulet eller arbeidslisten.
+3. Se status, tidsbruk, nødvendige data, lovhjemmel og kilde.
+4. Spør KI-losen om mva, ansatte eller årsrapportering. Svarene viser kilde og usikkerhet.
+5. Meld inn en mulig manglende plikt. Innspillet får tydelig status som uoffisielt.
+6. Åpne «Saksbehandler» og endre status på innspillet.
+
+## Adapterarkitektur
+
+`src/domain/adapters.ts` definerer fem utskiftbare kontrakter. `src/data/mock-adapters.ts` er standard i MVP-en. Senere kan disse erstattes med:
+
+- `OppgaveregisteretAdapter`: REST-kall mot `/skjema` med paginering og filterverdier.
+- `EnhetsregisteretAdapter`: oppslag på organisasjonsnummer eller batchimport av arrangørens JSON/CSV.
+- `OfficialSourceAdapter`: godkjent allowlist for Altinn, BR, Skatteetaten, Lovdata, Doffin og andre avtalte kilder.
+- `RetrievalChatAdapter`: RAG/LLM bak Fastify, med obligatoriske kilde-ID-er og usikkerhet i svarkontrakten.
+- `RequirementReviewAdapter`: varig lagring, revisjonslogg og saksbehandlerkø.
+
+Offisielle opplysninger, brukerinnspill og KI-forslag har ulike `TrustLevel`-verdier i domenemodellen. KI får ikke skrive til `Obligation` direkte.
+
+## Store datasett
+
+Se [data/README.md](data/README.md). Ikke legg et hackathon-datasett på rundt 35 GB i Git eller nettleseren. Bruk:
+
+```bash
+npm run import -- --input ./data/raw/datasett.json --output ./data/warehouse/datasett.duckdb --org-number 912345678
+```
+
+Importøren leser uten å samle hele datasettet i JavaScript-minnet, gjør et organisasjonsnummerfilter når feltet finnes, og skriver også Parquet for videre spørringer.
+
+## Docker og pi-tok
+
+Lokalt eller på `pi-tok`:
+
+```bash
+docker compose up --build
+```
+
+Løsningen lytter på port 3001. Legg en reverse proxy foran, for eksempel Caddy eller Nginx, med HTTPS og subdomenene `demo.krultra.no` og eventuelt `test.krultra.no`. DNS, brannmur, sertifikater og produksjonsmiljø skal settes opp eksplisitt; repoet endrer ikke DNS eller eksisterende produksjonsoppsett.
+
+Produksjonsnotater:
+
+- Reverse proxy terminerer HTTPS og videresender til `127.0.0.1:3001`.
+- Sett `NODE_ENV=production`, `APP_MODE` og eventuelle API-URL-er i miljøet.
+- Monter `data/` som persistent datamappe, ikke inn i image-laget.
+- Begrens API-tilgang med nettverkspolicy og autentisering når ekte data kobles på.
+
+For denne korte hackathonen anbefales pi-tok alene, med en isolert `br-orakel`-stack. Kjør eventuelt to containere: `demo.krultra.no` for stabil tag og `test.krultra.no` for arbeidsversjon. Pi-amk skal ikke klargjøres nå. Se [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [Docker-veiledningen](docs/DOCKER.md) og [ADR-0001](docs/ADR/0001-runtime-and-deployment.md).
+
+DNS-endringene er bare første del av deployen. Caddy må route `demo.krultra.no` til lokal port 3001 og `test.krultra.no` til lokal port 3002. Se [deploy/Caddyfile.br-orakel.example](deploy/Caddyfile.br-orakel.example). Selve Caddyfile på pi-tok skal ikke endres av agenter uten eksplisitt godkjenning.
+
+## Repository og sikkerhetsgrense
+
+Repoet skal opprettes som `br-orakel`. Første bootstrap mot GitHub gjøres av repo-eier:
+
+```bash
+git remote add origin git@github.com:krultra/br-orakel.git
+git push -u origin main
+```
+
+Agenttilganger gjelder bare dette repoet og denne hackathonen. Andre prosjekter, andre GitHub-repositorier, pi-tok utenfor den isolerte stacken, pi-amk, krultra.no-produksjon, DNS, backup, secrets og private filer er off limits uten en ny, eksplisitt godkjenning. Se [AGENTS.md](AGENTS.md).
+
+## Hvorfor Docker?
+
+Docker er valgt som leveranseformat, ikke som et krav for daglig frontendutvikling. Lokalt kan dere kjøre `npm install` og `npm run dev` direkte på maskinen. Docker brukes når vi skal få nøyaktig samme Node-runtime, avhengigheter og startkommando på pi-tok.
+
+Fordelene her er:
+
+- samme bygg kan testes lokalt, i CI og på pi-tok
+- demo- og testversjon kan kjøre isolert med egne porter og datamapper
+- rollback kan gjøres ved å starte forrige image/tag
+- pi-tok trenger ikke å få prosjektspesifikke Node- eller DuckDB-installasjoner på vertsmaskinen
+- Claude Code, Codex og mennesker får en tydelig, maskinlesbar kjørekontrakt
+
+Docker øker samtidig kompleksiteten litt. Vi må forstå images, containere, porter, volumes og reverse proxy. Derfor holder vi det enkelt: én Dockerfile, én Compose-fil og manuell deploy i hackathonfasen. Vi bruker ikke Kubernetes, Docker Swarm eller automatisk produksjonsdeploy.
+
+Hvis du ikke vil bruke Docker lokalt, er dette den anbefalte arbeidsflyten:
+
+```bash
+npm install
+npm run dev
+```
+
+Når vi skal verifisere deploypakken:
+
+```bash
+docker compose up --build
+```
+
+Docker er altså et isolasjons- og deployverktøy for denne MVP-en, ikke et nytt rammeverk dere må bruke i hver utviklingsrunde.
