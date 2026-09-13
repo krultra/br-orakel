@@ -15,9 +15,11 @@ Designsystemet-integrasjonen følger den aktuelle React-pakken fra Digdir: `@dig
 Oppgaveregisteret behandles som en offisiell, men pilotpreget registerkilde. API-dokumentasjonen viser støtte for JSON/XML, paginering og filtrering på blant annet organisasjonsform, næringskode, arbeidsgiver, etat, lovhjemmel, vedleggskrav og rapporteringsform: <https://data.brreg.no/oppgaveregisteret/api/docs/index.html>.
 
 Oppgaveregisteret-adapteren er implementert og kan aktiveres med
-`OPPGAVEREGISTERET_MODE=live`. Mockmodus er fortsatt standard for demo og CI.
-Se [dokumentasjonen for integrasjonen](docs/OPPGAVEREGISTERET.md) for filter,
-mapping, paginering og begrensninger.
+`OPPGAVEREGISTERET_MODE=live`. Enhetsregisteret-adapteren kan aktiveres med
+`ENHETSREGISTERET_MODE=live`, slik at organisasjonsnummeret slås opp hos BRREG
+før oppgavene filtreres. Mockmodus er fortsatt standard for demo og CI. Se
+[dokumentasjonen for Oppgaveregisteret](docs/OPPGAVEREGISTERET.md) og
+[Enhetsregisteret-integrasjonen](docs/ENHETSREGISTERET.md).
 
 ## Kom i gang
 

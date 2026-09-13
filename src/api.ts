@@ -9,7 +9,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   organization: (orgNumber: string) => request<Organization>(`/api/organizations/${orgNumber}`),
   obligations: (orgNumber: string) => request<Obligation[]>(`/api/organizations/${orgNumber}/obligations`),
-  sources: (query = '') => request<Source[]>(`/api/sources?q=${encodeURIComponent(query)}`),
+  sources: (query = '', orgNumber?: string) => request<Source[]>(`/api/sources?q=${encodeURIComponent(query)}${orgNumber ? `&orgNumber=${encodeURIComponent(orgNumber)}` : ''}`),
   reports: () => request<UserReportedRequirement[]>('/api/reported-requirements'),
   createReport: (input: Partial<UserReportedRequirement>) => request<UserReportedRequirement>('/api/reported-requirements', { method: 'POST', body: JSON.stringify(input) }),
   updateReport: (id: string, reviewStatus: UserReportedRequirement['reviewStatus']) => request<UserReportedRequirement>(`/api/reported-requirements/${id}`, { method: 'PATCH', body: JSON.stringify({ reviewStatus }) }),

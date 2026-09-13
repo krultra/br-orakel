@@ -4,9 +4,14 @@ export const mockOrganization: Organization = {
   orgNumber: '912345678',
   name: 'Fjordgløtt Mat og Handel AS',
   organizationForm: 'AS',
+  organizationFormName: 'Aksjeselskap',
   industryCodes: ['47.110', '56.101'],
   hasEmployees: true,
+  employeeCount: 8,
+  registeredInMvaRegister: true,
+  registeredInForetaksregister: true,
   municipality: 'Trondheim',
+  municipalityNumber: '5001',
   sources: ['source-brreg-org'],
 };
 

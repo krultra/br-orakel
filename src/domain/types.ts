@@ -32,9 +32,16 @@ export interface Organization {
   orgNumber: string;
   name: string;
   organizationForm: string;
+  organizationFormName?: string;
   industryCodes: string[];
   hasEmployees: boolean;
+  employeeCount?: number;
+  registeredInMvaRegister?: boolean;
+  registeredInForetaksregister?: boolean;
   municipality: string;
+  municipalityNumber?: string;
+  parentOrgNumber?: string;
+  registrationDate?: string;
   sources: string[];
 }
 

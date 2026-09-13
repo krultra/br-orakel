@@ -38,7 +38,7 @@ function App() {
   const loadOrganization = async (number = orgNumber) => {
     setLoading(true);
     try {
-      const [nextOrg, nextObligations, nextSources, nextReports] = await Promise.all([api.organization(number), api.obligations(number), api.sources(), api.reports()]);
+      const [nextOrg, nextObligations, nextSources, nextReports] = await Promise.all([api.organization(number), api.obligations(number), api.sources('', number), api.reports()]);
       setOrganization(nextOrg); setObligations(nextObligations); setSources(nextSources); setReports(nextReports); setSelectedObligationId(nextObligations[0]?.id ?? null); setToast('Virksomhetsoversikten er oppdatert.');
     } catch (error) { setOrganization(null); setToast(error instanceof Error ? error.message : 'Kunne ikke laste virksomheten.'); }
     finally { setLoading(false); }
