@@ -8,6 +8,10 @@ services:
       PORT: 3001
       HOST: 0.0.0.0
       APP_MODE: mock
+      OPPGAVEREGISTERET_MODE: ${OPPGAVEREGISTERET_MODE:-mock}
+      OPPGAVEREGISTERET_API: ${OPPGAVEREGISTERET_API:-https://data.brreg.no/oppgaveregisteret/api}
+      OPPGAVEREGISTERET_PAGE_SIZE: ${OPPGAVEREGISTERET_PAGE_SIZE:-100}
+      OPPGAVEREGISTERET_TIMEOUT_MS: ${OPPGAVEREGISTERET_TIMEOUT_MS:-10000}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
