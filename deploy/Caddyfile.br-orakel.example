@@ -4,10 +4,10 @@
 
 demo.krultra.no {
     encode gzip
-    reverse_proxy 127.0.0.1:3001
+    reverse_proxy 127.0.0.1:3010
 }
 
 test.krultra.no {
     encode gzip
-    reverse_proxy 127.0.0.1:3002
+    reverse_proxy 127.0.0.1:3020
 }

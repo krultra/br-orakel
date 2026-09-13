@@ -29,8 +29,8 @@ Kompleksiteten vi aksepterer er Dockerfile, Compose, porter, volumes og reverse 
 Forslag:
 
 ```text
-demo.krultra.no  -> eksisterende reverse proxy -> br-orakel-demo :3001  (stabil tag)
-test.krultra.no  -> eksisterende reverse proxy -> br-orakel-test :3002  (arbeidsversjon)
+demo.krultra.no  -> eksisterende reverse proxy -> br-orakel-demo :3010  (stabil tag)
+test.krultra.no  -> eksisterende reverse proxy -> br-orakel-test :3020  (arbeidsversjon)
                                       |
                               pi-tok, isolert stack
 ```
@@ -38,13 +38,19 @@ test.krultra.no  -> eksisterende reverse proxy -> br-orakel-test :3002  (arbeids
 Demo kan startes fra `docker-compose.yml`:
 
 ```bash
-docker compose -p br-orakel-demo up --build -d
+docker compose -p br-orakel-demo \
+  -f docker-compose.yml \
+  -f deploy/docker-compose.pi-tok.yml \
+  up --build -d
 ```
 
 Testversjonen bruker `docker-compose.test.yml` og sin egen datamappe:
 
 ```bash
-docker compose -p br-orakel-test -f docker-compose.test.yml up --build -d
+docker compose -p br-orakel-test \
+  -f docker-compose.test.yml \
+  -f deploy/docker-compose.pi-tok.yml \
+  up --build -d
 ```
 
 Staging bør beskyttes med Basic Auth, Cloudflare Access, VPN eller annen enkel tilgangskontroll. Demo kan være offentlig bare dersom mockdata og innholdet er egnet for det.
@@ -92,6 +98,23 @@ Pi-tok er anbefalt. Bruk:
 - bruk healthcheck og dokumentert rollback
 - ta backup av eksisterende konfigurasjon før endringer
 
+Når Docker er installert på pi-tok, kan en godkjent commit sendes til den
+dedikerte katalogen med:
+
+```bash
+./scripts/deploy-pi-tok.sh
+```
+
+Skriptet bruker `pi-tok` og `/home/tkruke/services/br-orakel` som standard.
+De kan overstyres med `BR_ORAKEL_REMOTE_HOST` og `BR_ORAKEL_REMOTE_DIR`.
+Det endrer ikke Caddy eller DNS. Verifiser først containeren direkte:
+
+```bash
+ssh pi-tok 'curl --fail --silent http://127.0.0.1:3010/api/health'
+```
+
+Forventet svar er `{"ok":true,"mode":"mock"}`.
+
 Dette bør gjøres i et vedlikeholdsvindu. Ikke endre DNS eller eksisterende produksjonsproxy uten eksplisitt godkjenning. Agentene skal bare forberede konfigurasjon i repoet; en menneskelig eier utfører endringen.
 
 ## Domeneshop og DNS
@@ -103,17 +126,17 @@ Opprett først DNS når serveren er valgt. Typisk:
 
 HTTPS bør termineres i Caddy eller Nginx. Appen lytter internt på HTTP-port 3001/3002. DNS-endring, TLS og åpning av porter krever eksplisitt godkjenning.
 
-DNS peker bare trafikken til pi-tok. Caddy må også vite hvilken lokal port hvert subdomene skal videresende til. Et versjonert eksempel ligger i `deploy/Caddyfile.br-orakel.example`:
+DNS peker bare trafikken til pi-tok. Caddy må også vite hvilken lokal port hvert subdomene skal videresende til. Overlayet binder demo til `127.0.0.1:3010` og test til `127.0.0.1:3020`. Et versjonert eksempel ligger i `deploy/Caddyfile.br-orakel.example`:
 
 ```caddyfile
 demo.krultra.no {
     encode gzip
-    reverse_proxy 127.0.0.1:3001
+    reverse_proxy 127.0.0.1:3010
 }
 
 test.krultra.no {
     encode gzip
-    reverse_proxy 127.0.0.1:3002
+    reverse_proxy 127.0.0.1:3020
 }
 ```
 
