@@ -46,6 +46,35 @@ API-nøkkelen skal aldri legges i `.env.example`, Git, Docker-image eller
 frontend. På pi-tok legges den i deploymiljøet eller en separat, uversjonert
 env-fil med begrensede filrettigheter.
 
+### Aktivere AI på pi-tok
+
+Den deployerte standarden er mockmodus. Fra repoets rot kan hosted OpenAI
+aktiveres uten at nøkkelen legges i Git eller sendes som argument på
+kommandolinjen:
+
+```bash
+./scripts/enable-ai-pi-tok.sh
+```
+
+Skriptet spør etter nøkkelen uten å vise den, oppretter
+`/home/tkruke/services/br-orakel/.env` på pi-tok med filrettighet `600`, og
+bygger/starter både demo- og test-stackene på nytt. Det avbryter hvis env-filen
+allerede finnes, slik at eksisterende runtime-konfigurasjon ikke overskrives
+automatisk. Nøkkelen kan også gis via `OPENAI_API_KEY`-miljøvariabelen i
+terminalen. Ikke legg den i en shell-historikk, commit eller chatmelding.
+
+Etterpå skal begge helsesjekkene vise `aiProvider: "openai"`:
+
+```bash
+ssh pi-tok 'curl --fail --silent http://127.0.0.1:3010/api/health'
+ssh pi-tok 'curl --fail --silent http://127.0.0.1:3020/api/health'
+```
+
+Hosted OpenAI-kall skjer fra Fastify-serveren. API-nøkkelen skal derfor aldri
+eksponeres i React-bundlen eller sendes direkte fra nettleseren. Dette følger
+OpenAI sin anbefaling om å laste API-nøkler fra miljøvariabel eller
+nøkkelhåndtering på serveren.
+
 `OPENAI_MAX_OUTPUT_TOKENS=12000` er med vilje romslig nok til at en demo ikke
 blir kunstig kort. `OPENAI_MAX_CONTEXT_CHARS` er en sikkerhetsgrense for én
 forespørsel, ikke en anbefaling om å sende et helt stort datasett til modellen.

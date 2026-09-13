@@ -117,6 +117,20 @@ ssh pi-tok 'curl --fail --silent http://127.0.0.1:3020/api/health'
 Forventet svar viser `organizationProvider` og `obligationProvider` som
 `live` med mindre de overstyres eksplisitt.
 
+### Hosted AI
+
+AI er mock i en ny deployment. Aktiver hosted OpenAI etter at en godkjent
+runtime-nøkkel er tilgjengelig:
+
+```bash
+./scripts/enable-ai-pi-tok.sh
+```
+
+Dette oppretter en lokal, uversjonert `.env` i den dedikerte br-orakel-mappen
+på pi-tok og starter begge stackene på nytt. Skriptet avbryter dersom filen
+allerede finnes. Det endrer ikke Caddy, DNS eller andre tjenester på pi-tok.
+Se [KI-integrasjonen](AI.md) for miljøvariabler og sikkerhetsregler.
+
 Dette bør gjøres i et vedlikeholdsvindu. Ikke endre DNS eller eksisterende produksjonsproxy uten eksplisitt godkjenning. Agentene skal bare forberede konfigurasjon i repoet; en menneskelig eier utfører endringen.
 
 ## Domeneshop og DNS
