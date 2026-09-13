@@ -4,17 +4,25 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
+import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 
 const app = Fastify({ logger: true });
 const organizations = new MockOrganizationAdapter();
-const obligations = new MockObligationAdapter();
+const obligations = process.env.OPPGAVEREGISTERET_MODE === 'live'
+  ? new OppgaveregisteretAdapter({
+      baseUrl: process.env.OPPGAVEREGISTERET_API,
+      pageSize: Number(process.env.OPPGAVEREGISTERET_PAGE_SIZE ?? 100),
+      timeoutMs: Number(process.env.OPPGAVEREGISTERET_TIMEOUT_MS ?? 10000),
+    })
+  : new MockObligationAdapter();
 const sources = new MockSourceAdapter();
 const requirements = new MockRequirementAdapter();
 const chat = new MockChatAdapter();
+const runtimeMode = process.env.OPPGAVEREGISTERET_MODE === 'live' ? 'oppgaveregisteret' : process.env.APP_MODE ?? 'mock';
 
 await app.register(cors, { origin: true });
 
-app.get('/api/health', async () => ({ ok: true, mode: process.env.APP_MODE ?? 'mock' }));
+app.get('/api/health', async () => ({ ok: true, mode: runtimeMode }));
 
 app.get('/api/organizations/:orgNumber', async (request, reply) => {
   const { orgNumber } = request.params as { orgNumber: string };
@@ -27,7 +35,14 @@ app.get('/api/organizations/:orgNumber/obligations', async (request, reply) => {
   const { orgNumber } = request.params as { orgNumber: string };
   const organization = await organizations.findByOrgNumber(orgNumber);
   if (!organization) return reply.code(404).send({ message: 'Virksomheten finnes ikke i mock-adapteren.' });
-  return obligations.listForOrganization(organization);
+  try {
+    return await obligations.listForOrganization(organization);
+  } catch (error) {
+    if (error instanceof OppgaveregisteretError) {
+      return reply.code(502).send({ code: 'OPPGAVEREGISTERET_UNAVAILABLE', message: 'Oppgaveregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
+    }
+    throw error;
+  }
 });
 
 app.get('/api/sources', async (request) => {

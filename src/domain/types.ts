@@ -54,6 +54,7 @@ export interface Obligation {
   requiredData: string[];
   attachments: string[];
   sourceLinks: string[];
+  reportingForms?: string[];
   status: TaskStatus;
   trigger: ObligationTrigger;
   eventLabel?: string;

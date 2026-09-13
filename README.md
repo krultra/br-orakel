@@ -14,6 +14,11 @@ Designsystemet-integrasjonen følger den aktuelle React-pakken fra Digdir: `@dig
 
 Oppgaveregisteret behandles som en offisiell, men pilotpreget registerkilde. API-dokumentasjonen viser støtte for JSON/XML, paginering og filtrering på blant annet organisasjonsform, næringskode, arbeidsgiver, etat, lovhjemmel, vedleggskrav og rapporteringsform: <https://data.brreg.no/oppgaveregisteret/api/docs/index.html>.
 
+Oppgaveregisteret-adapteren er implementert og kan aktiveres med
+`OPPGAVEREGISTERET_MODE=live`. Mockmodus er fortsatt standard for demo og CI.
+Se [dokumentasjonen for integrasjonen](docs/OPPGAVEREGISTERET.md) for filter,
+mapping, paginering og begrensninger.
+
 ## Kom i gang
 
 Krever Node.js 22+.
@@ -58,9 +63,10 @@ npm run build
 
 ## Adapterarkitektur
 
-`src/domain/adapters.ts` definerer fem utskiftbare kontrakter. `src/data/mock-adapters.ts` er standard i MVP-en. Senere kan disse erstattes med:
+`src/domain/adapters.ts` definerer fem utskiftbare kontrakter. Mockadapterne er
+standard i MVP-en, mens `OppgaveregisteretAdapter` kan aktiveres i live-modus.
+Senere kan disse utvides med:
 
-- `OppgaveregisteretAdapter`: REST-kall mot `/skjema` med paginering og filterverdier.
 - `EnhetsregisteretAdapter`: oppslag på organisasjonsnummer eller batchimport av arrangørens JSON/CSV.
 - `OfficialSourceAdapter`: godkjent allowlist for Altinn, BR, Skatteetaten, Lovdata, Doffin og andre avtalte kilder.
 - `RetrievalChatAdapter`: RAG/LLM bak Fastify, med obligatoriske kilde-ID-er og usikkerhet i svarkontrakten.
