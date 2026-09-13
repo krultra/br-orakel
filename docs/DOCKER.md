@@ -40,7 +40,7 @@ docker compose -p br-orakel-demo \
 
 docker compose -p br-orakel-test \
   -f docker-compose.test.yml \
-  -f deploy/docker-compose.pi-tok.yml \
+  -f deploy/docker-compose.pi-tok-test.yml \
   up --build -d
 ```
 

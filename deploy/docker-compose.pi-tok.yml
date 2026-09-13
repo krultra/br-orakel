@@ -3,7 +3,3 @@ services:
   br-orakel:
     ports:
       - "127.0.0.1:3010:3001"
-
-  br-orakel-test:
-    ports:
-      - "127.0.0.1:3020:3001"
