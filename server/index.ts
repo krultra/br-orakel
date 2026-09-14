@@ -88,12 +88,23 @@ function recurringDates(recurrence: TaskRecurrence): string[] {
   return dates;
 }
 
+function normalizeTaskStatus(status: unknown): TaskPreference['status'] {
+  if (status === 'not_started' || status === 'in_progress' || status === 'completed') return status;
+  if (status === 'ready') return 'in_progress';
+  if (status === 'submitted') return 'completed';
+  if (status === 'not_applicable' || status === 'needs_clarification') return 'not_started';
+  return undefined;
+}
+
 function applyPreference(obligation: Obligation, preference?: TaskPreference): Obligation {
   if (!preference) return obligation;
-  const withUserStatus = preference.status ? { ...obligation, status: preference.status } : obligation;
-  if (!preference.activated || !preference.recurrence) return withUserStatus;
+  const status = normalizeTaskStatus(preference.status);
+  const today = new Date().toISOString().slice(0, 10);
+  const isHidden = preference.hiddenForever === true || Boolean(preference.hiddenUntil && preference.hiddenUntil >= today);
+  const withUserPreference = { ...obligation, ...(status ? { status } : {}), isHidden };
+  if (!preference.activated || !preference.recurrence) return withUserPreference;
   const dates = recurringDates(preference.recurrence);
-  return dates.length > 0 ? { ...withUserStatus, deadline: dates[0], reportingWindowStart: dates[0], deadlineDates: dates } : withUserStatus;
+  return dates.length > 0 ? { ...withUserPreference, deadline: dates[0], reportingWindowStart: dates[0], deadlineDates: dates } : withUserPreference;
 }
 
 const sourcesForOrganization = async (query: string, orgNumber?: string) => {
@@ -226,16 +237,19 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
   if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer oppgaver.' });
   const { orgNumber, obligationId } = request.params as { orgNumber: string; obligationId: string };
   const body = request.body as Partial<TaskPreference>;
+  const existing = demoStore.preferences(user.id, orgNumber.replace(/\s/g, '')).find((item) => item.obligationId === obligationId);
+  const status = body.status === undefined ? existing?.status : normalizeTaskStatus(body.status);
+  if (body.status !== undefined && !status) return reply.code(400).send({ message: 'Ugyldig oppgavestatus.' });
   const preference: TaskPreference = {
     userId: user.id,
     orgNumber: orgNumber.replace(/\s/g, ''),
     obligationId,
-    activated: body.activated === true,
-    comment: typeof body.comment === 'string' ? body.comment.slice(0, 2000) : undefined,
-    recurrence: body.recurrence,
-    status: body.status,
-    hiddenUntil: body.hiddenUntil,
-    hiddenForever: body.hiddenForever === true,
+    activated: body.activated ?? existing?.activated ?? false,
+    comment: body.comment === undefined ? existing?.comment : typeof body.comment === 'string' ? body.comment.slice(0, 2000) : undefined,
+    recurrence: body.recurrence ?? existing?.recurrence,
+    status,
+    hiddenUntil: body.hiddenForever !== undefined ? body.hiddenUntil : body.hiddenUntil ?? existing?.hiddenUntil,
+    hiddenForever: body.hiddenForever ?? existing?.hiddenForever ?? false,
   };
   return demoStore.savePreference(user.id, preference);
 });

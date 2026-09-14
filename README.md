@@ -47,6 +47,19 @@ lokale demo-instansen. Virksomhetsbrukere kan søke opp virksomheter og lagre
 dem i «Mine virksomheter». Brukerdata lagres lokalt i `data/runtime/` og skal
 ikke legges i Git.
 
+### Versjonering
+
+ORaKeL viser versjon i toppnavigasjonen som `0.y.z`:
+
+- `0` er hovednivået under hackathonet.
+- `y` er demo-release og økes bare når en versjon eksplisitt publiseres til `demo.krultra.no`.
+- `z` er byggidentifikatoren og settes automatisk til byggtidspunktet i sekunder, slik at hvert nytt bygg får en ny variant.
+
+Vanlige bygg bruker `0.0.z`. For en demo-release kan deployen få for eksempel
+`ORAKEL_DEMO_RELEASE=1`. `scripts/deploy-pi-tok.sh` deployer bare til
+`test.krultra.no` som standard. Demo krever eksplisitt
+`BR_ORAKEL_DEPLOY_TARGET=demo`.
+
 Oppgaver uten fast offisiell frist kan aktiveres fra oppgavedetaljene med en
 lokal, gjentakende frist. Den lokale fristen er en brukerinnstilling og endrer
 ikke opplysningene fra Oppgaveregisteret.

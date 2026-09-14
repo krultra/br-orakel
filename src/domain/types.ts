@@ -10,11 +10,7 @@ export type TrustLevel =
 export type TaskStatus =
   | 'not_started'
   | 'in_progress'
-  | 'ready'
-  | 'submitted'
-  | 'completed'
-  | 'not_applicable'
-  | 'needs_clarification';
+  | 'completed';
 
 export type ObligationTrigger = 'periodic' | 'event';
 
@@ -98,6 +94,8 @@ export interface Obligation {
   sourceLinks: string[];
   reportingForms?: string[];
   status: TaskStatus;
+  /** User-local visibility preference; official obligation data remains unchanged. */
+  isHidden?: boolean;
   trigger: ObligationTrigger;
   eventLabel?: string;
   registerId?: string;

@@ -1,7 +1,7 @@
 import type { ChatAnswer, DemoUser, Obligation, Organization, Source, TaskPreference, UserReportedRequirement } from './domain/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init });
+  const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? 'Noe gikk galt');
   return response.json() as Promise<T>;
 }

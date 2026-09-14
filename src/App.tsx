@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CalendarDays, Check, ChevronRight, CircleHelp, Clock3, FileCheck2, Filter, Landmark, MessageCircle, Plus, Search, Send, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
+import { AlertCircle, CalendarDays, Check, ChevronRight, CircleHelp, Clock3, EyeOff, FileCheck2, Filter, Landmark, Plus, Search, Send, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
 import type { ChatAnswer, DemoUser, Obligation, Organization, Source, TaskStatus, UserReportedRequirement } from './domain/types';
+import { appEnvironment, appVersion } from './version';
 
 const statusLabels: Record<TaskStatus, string> = {
-  not_started: 'Ikke startet', in_progress: 'Pågår', ready: 'Klar til innsending', submitted: 'Sendt inn', completed: 'Fullført', not_applicable: 'Ikke relevant', needs_clarification: 'Avklar først',
+  not_started: 'Ikke påbegynt', in_progress: 'Under arbeid', completed: 'Ferdig',
 };
 
 const statusClass: Record<TaskStatus, string> = {
-  not_started: 'status-neutral', in_progress: 'status-blue', ready: 'status-yellow', submitted: 'status-purple', completed: 'status-green', not_applicable: 'status-neutral', needs_clarification: 'status-orange',
+  not_started: 'status-neutral', in_progress: 'status-blue', completed: 'status-green',
 };
 
 function formatDate(value?: string) {
@@ -36,6 +37,7 @@ function App() {
   const [view, setView] = useState<'overview' | 'admin'>('overview');
   const [calendarMode, setCalendarMode] = useState<'year' | 'list'>('year');
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
+  const [visibilityFilter, setVisibilityFilter] = useState<'visible' | 'hidden' | 'all'>('visible');
   const [loading, setLoading] = useState(false);
   const [searchingOrganizations, setSearchingOrganizations] = useState(false);
   const [toast, setToast] = useState('');
@@ -94,10 +96,16 @@ function App() {
   };
 
   const signOut = async () => {
-    await api.logout();
-    setUser(null);
-    setOrganization(null);
-    setObligations([]);
+    try {
+      await api.logout();
+    } finally {
+      setUser(null);
+      setOrganization(null);
+      setObligations([]);
+      setSources([]);
+      setReports([]);
+      setSelectedObligationId(null);
+    }
   };
 
   const handleAuthenticated = async (nextUser: DemoUser) => {
@@ -115,11 +123,14 @@ function App() {
   if (!user) return <AuthScreen onAuthenticated={(nextUser) => { void handleAuthenticated(nextUser); }} />;
 
   const selectedObligation = obligations.find((item) => item.id === selectedObligationId) ?? null;
-  const filteredObligations = statusFilter === 'all' ? obligations : obligations.filter((item) => item.status === statusFilter);
+  const filteredByStatus = statusFilter === 'all' ? obligations : obligations.filter((item) => item.status === statusFilter);
+  const filteredObligations = visibilityFilter === 'all'
+    ? filteredByStatus
+    : filteredByStatus.filter((item) => visibilityFilter === 'hidden' ? item.isHidden === true : item.isHidden !== true);
 
   return <div className="app-shell">
     <header className="topbar">
-      <div className="brand-lockup"><img src="/orakel-logo.svg" alt="ORaKeL" /><div><strong>ORaKeL</strong><span>KI-assistert rapporteringslos</span></div></div>
+      <div className="brand-lockup"><img src="/orakel-logo.svg" alt="ORaKeL" /><div><strong>ORaKeL</strong><span>KI-assistert rapporteringslos</span><small className="app-version">v{appVersion} · {appEnvironment}</small></div></div>
       <div className="user-pill"><div className="avatar">{user.displayName.slice(0, 2).toUpperCase()}</div><span>{user.displayName}</span><small>{user.role === 'caseworker' ? 'Saksbehandler' : 'Virksomhet'}</small><button onClick={() => void signOut()}>Logg ut</button></div>
     </header>
 
@@ -132,7 +143,7 @@ function App() {
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}<button onClick={() => setToast('')} aria-label="Lukk melding"><X size={16} /></button></div>}
 
       {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status) => { const updated = await api.updateReport(id, status); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
-      {user.role === 'business' && organization && <Overview organization={organization} obligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} setSelectedObligationId={setSelectedObligationId} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} onTaskChanged={() => void loadOrganization(organization.orgNumber)} />}
+      {user.role === 'business' && organization && <Overview organization={organization} obligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} setSelectedObligationId={setSelectedObligationId} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={() => void loadOrganization(organization.orgNumber)} />}
       {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Søk etter virksomheten din ovenfor, velg et treff og legg den til i Mine virksomheter.</Paragraph></Card>}
     </main>
   </div>;
@@ -157,14 +168,14 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: DemoUser) => 
   return <main className="auth-shell"><Card className="auth-card"><img src="/orakel-logo.svg" alt="ORaKeL" className="auth-logo" /><p className="eyebrow">Demo-tilgang</p><Heading level={1}>{mode === 'login' ? 'Logg inn i ORaKeL' : 'Opprett demo-bruker'}</Heading><Paragraph>{mode === 'login' ? 'Velg virksomhetsbruker eller saksbehandler for å starte.' : 'Brukeren lagres kun i denne hackathon-instansen.'}</Paragraph>{mode === 'register' && <Textfield label="Navn som vises" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />}{<Textfield label="Brukernavn" value={username} onChange={(event) => setUsername(event.target.value)} />}{<Textfield label="Passord" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />}{error && <Alert data-color="danger"><AlertCircle size={17} />{error}</Alert>}<Button onClick={() => void submit()} disabled={busy || !username || !password}>{busy ? 'Arbeider…' : mode === 'login' ? 'Logg inn' : 'Opprett bruker'}</Button><button className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{mode === 'login' ? 'Opprett ny virksomhetsbruker' : 'Jeg har allerede bruker'}</button>{mode === 'login' && <p className="demo-credentials">Demo-saksbehandler: <code>br-saksbehandler</code> / <code>demo</code></p>}</Card></main>;
 }
 
-function Overview({ organization, obligations, allObligations, sources, selectedObligation, setSelectedObligationId, calendarMode, setCalendarMode, statusFilter, setStatusFilter, onTaskChanged }: { organization: Organization; obligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; setSelectedObligationId: (id: string) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; onTaskChanged: () => void }) {
+function Overview({ organization, obligations, allObligations, sources, selectedObligation, setSelectedObligationId, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged }: { organization: Organization; obligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; setSelectedObligationId: (id: string) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'all') => void; onTaskChanged: () => void }) {
   const [showReport, setShowReport] = useState(false);
   return <>
     <section className="context-bar"><div className="context-company"><div className="company-icon"><Landmark size={20} /></div><div><strong>{organization.name}</strong><span>Org.nr. {organization.orgNumber} · {organization.organizationForm} · {organization.municipality}</span></div></div><div className="context-facts"><span><strong>{allObligations.length}</strong> oppgaver</span><span><strong>{allObligations.filter((item) => item.status === 'completed').length}</strong> fullført</span><span><strong>{allObligations.reduce((sum, item) => sum + item.estimatedMinutes, 0)} min</strong> estimert</span></div></section>
     <section className="dashboard-grid">
       <div className="main-column">
         <Card className="surface-card calendar-card"><div className="card-heading-row"><div><p className="eyebrow">Rapporteringsåret 2026</p><Heading level={2}>Årshjul</Heading></div><div className="segmented"><button className={calendarMode === 'year' ? 'selected' : ''} onClick={() => setCalendarMode('year')}>Årshjul</button><button className={calendarMode === 'list' ? 'selected' : ''} onClick={() => setCalendarMode('list')}>Liste</button></div></div>{calendarMode === 'year' ? <YearWheel obligations={obligations} selectedId={selectedObligation?.id} onSelect={setSelectedObligationId} /> : <ObligationList obligations={obligations} selectedId={selectedObligation?.id} onSelect={setSelectedObligationId} />}</Card>
-        <div className="workspace-heading"><div><p className="eyebrow">Arbeidsliste</p><Heading level={2}>Det som må gjøres</Heading></div><div className="filter-row"><Filter size={16} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} aria-label="Filtrer oppgaver"><option value="all">Alle statuser</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div></div>
+        <div className="workspace-heading"><div><p className="eyebrow">Arbeidsliste</p><Heading level={2}>Det som må gjøres</Heading></div><div className="filter-row"><Filter size={16} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} aria-label="Filtrer oppgaver"><option value="all">Alle statuser</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select value={visibilityFilter} onChange={(event) => setVisibilityFilter(event.target.value as typeof visibilityFilter)} aria-label="Filtrer synlighet"><option value="visible">Synlige</option><option value="hidden">Skjulte</option><option value="all">Alle oppgaver</option></select></div></div>
         <div className="task-list">{obligations.map((item) => <TaskRow key={item.id} obligation={item} selected={selectedObligation?.id === item.id} onClick={() => setSelectedObligationId(item.id)} />)}</div>
         <button className="report-cta" onClick={() => setShowReport(true)}><div className="report-cta-icon"><Plus size={20} /></div><div><strong>Finner du en plikt som mangler?</strong><span>Meld inn et mulig krav til menneskelig gjennomgang.</span></div><ChevronRight size={20} /></button>
       </div>
@@ -200,7 +211,7 @@ function ObligationList({ obligations, selectedId, onSelect }: { obligations: Ob
 }
 
 function TaskRow({ obligation, selected, onClick }: { obligation: Obligation; selected: boolean; onClick: () => void }) {
-  return <button className={`task-row ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[obligation.status]}`}>{obligation.trigger === 'event' ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} /></div><span>{obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>Frist</small><strong>{formatDate(obligation.deadline)}</strong></div><div className="task-status"><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span><ChevronRight size={18} /></div></button>;
+  return <button className={`task-row ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[obligation.status]}`}>{obligation.trigger === 'event' ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} />{obligation.isHidden && <span className="hidden-label"><EyeOff size={12} /> Skjult</span>}</div><span>{obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>Frist</small><strong>{formatDate(obligation.deadline)}</strong></div><div className="task-status"><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span><ChevronRight size={18} /></div></button>;
 }
 
 function ObligationDetail({ orgNumber, obligation, sources, onTaskChanged }: { orgNumber: string; obligation: Obligation | null; sources: Source[]; onTaskChanged: () => void }) {
@@ -212,12 +223,19 @@ function ObligationDetail({ orgNumber, obligation, sources, onTaskChanged }: { o
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState('');
   const [comment, setComment] = useState('');
+  const [hiddenUntil, setHiddenUntil] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setStatus(obligation?.status ?? 'not_started');
+    setHiddenUntil('');
+  }, [obligation?.id, obligation?.status]);
   if (!obligation) return <Card className="surface-card detail-card"><Heading level={3}>Velg en oppgave</Heading><Paragraph>Klikk på en oppgave i årshjulet eller arbeidslisten for å se detaljer.</Paragraph></Card>;
   const linkedSources = sources.filter((source) => obligation.sourceLinks.includes(source.id));
-  const saveStatus = async (nextStatus: TaskStatus) => { setSaving(true); await api.saveTaskPreference(orgNumber, obligation.id, { status: nextStatus, activated: Boolean(obligation.deadline || obligation.deadlineDates?.length) }); setStatus(nextStatus); setSaving(false); onTaskChanged(); };
+  const saveStatus = async (nextStatus: TaskStatus) => { setSaving(true); try { await api.saveTaskPreference(orgNumber, obligation.id, { status: nextStatus, activated: Boolean(obligation.deadline || obligation.deadlineDates?.length) }); setStatus(nextStatus); onTaskChanged(); } finally { setSaving(false); } };
   const activateSchedule = async () => { setSaving(true); await api.saveTaskPreference(orgNumber, obligation.id, { activated: true, comment, recurrence: { frequency, interval: Math.max(1, Number(interval) || 1), dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), startDate, endDate: endDate || undefined } }); setShowSchedule(false); setSaving(false); onTaskChanged(); };
-  return <Card className="surface-card detail-card"><div className="detail-topline"><span className="eyebrow">Oppgavedetaljer</span><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span></div><Heading level={3}>{obligation.name}</Heading><Paragraph>{obligation.description}</Paragraph><div className="detail-meta"><div><Clock3 size={16} /><span><small>Tidsbruk</small><strong>{obligation.estimatedMinutes} minutter</strong></span></div><div><Landmark size={16} /><span><small>Ansvarlig etat</small><strong>{obligation.responsibleAgency}</strong></span></div><div><FileCheck2 size={16} /><span><small>Lovhjemmel</small><strong>{obligation.legalBasis}</strong></span></div></div><div className="detail-section"><strong>Nødvendige data</strong><div className="tag-row">{obligation.requiredData.map((item) => <Tag key={item}>{item}</Tag>)}</div></div>{obligation.attachments.length > 0 && <div className="detail-section"><strong>Vedlegg</strong><p>{obligation.attachments.join(' · ')}</p></div>}<div className="detail-section"><strong>Status</strong><select value={status === 'not_started' ? obligation.status : status} onChange={(event) => void saveStatus(event.target.value as TaskStatus)} disabled={saving}>{Object.entries(statusLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></div>{!obligation.deadline && <div className="schedule-box"><strong>Aktiver i årshjulet</strong><p>Denne oppgaven har ingen fast frist. Legg inn en lokal, gjentakende arbeidsfrist.</p>{showSchedule ? <div className="schedule-form"><label>Gjentakelse<select value={frequency} onChange={(event) => setFrequency(event.target.value as typeof frequency)}><option value="monthly">Månedlig</option><option value="quarterly">Hvert kvartal</option><option value="yearly">Årlig</option></select></label><Textfield label="Intervall" type="number" value={interval} onChange={(event) => setInterval(event.target.value)} /><Textfield label="Dag i måneden" type="number" value={dayOfMonth} onChange={(event) => setDayOfMonth(event.target.value)} /><Textfield label="Startdato" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /><Textfield label="Sluttdato (valgfritt)" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /><Textfield label="Kommentar" value={comment} onChange={(event) => setComment(event.target.value)} /><div className="dialog-actions"><Button variant="secondary" onClick={() => setShowSchedule(false)}>Avbryt</Button><Button onClick={() => void activateSchedule()} disabled={saving}>Aktiver frister</Button></div></div> : <Button variant="secondary" onClick={() => setShowSchedule(true)}>Velg gjentakende frist</Button>}</div>}<div className="detail-section"><strong>Kilder</strong>{linkedSources.length ? linkedSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" className="source-link" key={source.id}><ShieldCheck size={15} />{source.title}<ChevronRight size={15} /></a>) : <p className="muted">Ingen autoritativ kilde koblet ennå.</p>}</div></Card>;
+  const setHidden = async (until?: string) => { setSaving(true); try { await api.saveTaskPreference(orgNumber, obligation.id, { activated: true, hiddenUntil: until, hiddenForever: !until }); onTaskChanged(); } finally { setSaving(false); } };
+  const unhide = async () => { setSaving(true); try { await api.saveTaskPreference(orgNumber, obligation.id, { activated: false, hiddenUntil: undefined, hiddenForever: false }); onTaskChanged(); } finally { setSaving(false); } };
+  return <Card className="surface-card detail-card"><div className="detail-topline"><span className="eyebrow">Oppgavedetaljer</span><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span></div><Heading level={3}>{obligation.name}</Heading><Paragraph>{obligation.description}</Paragraph><div className="detail-meta"><div><Clock3 size={16} /><span><small>Tidsbruk</small><strong>{obligation.estimatedMinutes} minutter</strong></span></div><div><Landmark size={16} /><span><small>Ansvarlig etat</small><strong>{obligation.responsibleAgency}</strong></span></div><div><FileCheck2 size={16} /><span><small>Lovhjemmel</small><strong>{obligation.legalBasis}</strong></span></div></div><div className="detail-section"><strong>Nødvendige data</strong><div className="tag-row">{obligation.requiredData.map((item) => <Tag key={item}>{item}</Tag>)}</div></div>{obligation.attachments.length > 0 && <div className="detail-section"><strong>Vedlegg</strong><p>{obligation.attachments.join(' · ')}</p></div>}<div className="detail-section"><strong>Status</strong><select value={status} onChange={(event) => void saveStatus(event.target.value as TaskStatus)} disabled={saving}>{Object.entries(statusLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></div><div className="detail-section visibility-section"><strong>Synlighet</strong>{obligation.isHidden ? <><p className="hidden-note"><EyeOff size={14} /> Oppgaven er skjult i årshjulet og arbeidslisten.</p><Button variant="secondary" onClick={() => void unhide()} disabled={saving}><EyeOff size={15} /> Vis oppgaven igjen</Button></> : <><div className="visibility-actions"><Button variant="secondary" onClick={() => void setHidden()} disabled={saving}><EyeOff size={15} /> Skjul permanent</Button><Textfield label="Skjul til" type="date" value={hiddenUntil} onChange={(event) => setHiddenUntil(event.target.value)} /><Button variant="secondary" onClick={() => void setHidden(hiddenUntil)} disabled={saving || !hiddenUntil}>Skjul til dato</Button></div></>}</div>{!obligation.deadline && <div className="schedule-box"><strong>Aktiver i årshjulet</strong><p>Denne oppgaven har ingen fast frist. Legg inn en lokal, gjentakende arbeidsfrist.</p>{showSchedule ? <div className="schedule-form"><label>Gjentakelse<select value={frequency} onChange={(event) => setFrequency(event.target.value as typeof frequency)}><option value="monthly">Månedlig</option><option value="quarterly">Hvert kvartal</option><option value="yearly">Årlig</option></select></label><Textfield label="Intervall" type="number" value={interval} onChange={(event) => setInterval(event.target.value)} /><Textfield label="Dag i måneden" type="number" value={dayOfMonth} onChange={(event) => setDayOfMonth(event.target.value)} /><Textfield label="Startdato" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /><Textfield label="Sluttdato (valgfritt)" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /><Textfield label="Kommentar" value={comment} onChange={(event) => setComment(event.target.value)} /><div className="dialog-actions"><Button variant="secondary" onClick={() => setShowSchedule(false)}>Avbryt</Button><Button onClick={() => void activateSchedule()} disabled={saving}>Aktiver frister</Button></div></div> : <Button variant="secondary" onClick={() => setShowSchedule(true)}>Velg gjentakende frist</Button>}</div>}<div className="detail-section"><strong>Kilder</strong>{linkedSources.length ? linkedSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" className="source-link" key={source.id}><ShieldCheck size={15} />{source.title}<ChevronRight size={15} /></a>) : <p className="muted">Ingen autoritativ kilde koblet ennå.</p>}</div></Card>;
 }
 
 function SourcePanel({ sources }: { sources: Source[] }) {

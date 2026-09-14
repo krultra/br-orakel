@@ -1,6 +1,11 @@
 services:
   br-orakel:
-    build: .
+    build:
+      context: .
+      args:
+        ORAKEL_DEMO_RELEASE: ${ORAKEL_DEMO_RELEASE:-0}
+        ORAKEL_BUILD_NUMBER: ${ORAKEL_BUILD_NUMBER:-}
+        ORAKEL_ENVIRONMENT: ${ORAKEL_ENVIRONMENT:-demo}
     ports:
       - "${BR_ORAKEL_BIND_ADDRESS:-127.0.0.1}:${BR_ORAKEL_HOST_PORT:-3001}:3001"
     environment:
