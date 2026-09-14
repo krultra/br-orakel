@@ -1,7 +1,10 @@
 import type { TaskStatus } from './types.js';
 
 export function statusForDate(baseStatus: TaskStatus, date: string | undefined, statusByDate?: Record<string, TaskStatus>): TaskStatus {
-  return date && statusByDate?.[date] ? statusByDate[date] : baseStatus;
+  if (!date || !statusByDate) return baseStatus;
+  // Once a recurring task has per-instance statuses, an unset date is a new
+  // instance and must not inherit the aggregate status of another instance.
+  return statusByDate[date] ?? 'not_started';
 }
 
 export function aggregateRecurringStatus(baseStatus: TaskStatus, dates: string[] | undefined, statusByDate?: Record<string, TaskStatus>): TaskStatus {

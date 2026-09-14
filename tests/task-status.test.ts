@@ -8,7 +8,8 @@ test('status for én gjentakende frist endrer ikke de andre fristene', () => {
   const statusByDate = { '2026-09-05': 'completed' as const };
 
   assert.equal(statusForDate('in_progress', '2026-09-05', statusByDate), 'completed');
-  assert.equal(statusForDate('in_progress', '2026-10-05', statusByDate), 'in_progress');
+  assert.equal(statusForDate('in_progress', '2026-10-05', statusByDate), 'not_started');
+  assert.equal(statusForDate('in_progress', undefined, statusByDate), 'in_progress');
   assert.equal(aggregateRecurringStatus('in_progress', dates, statusByDate), 'in_progress');
 });
 
