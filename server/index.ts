@@ -101,7 +101,13 @@ function applyPreference(obligation: Obligation, preference?: TaskPreference): O
   const status = normalizeTaskStatus(preference.status);
   const today = new Date().toISOString().slice(0, 10);
   const isHidden = preference.hiddenForever === true || Boolean(preference.hiddenUntil && preference.hiddenUntil >= today);
-  const withUserPreference = { ...obligation, ...(status ? { status } : {}), isHidden };
+  const withUserPreference = {
+    ...obligation,
+    ...(status ? { status } : {}),
+    isHidden,
+    ...(preference.deadlineOverride ? { localDeadline: preference.deadlineOverride } : {}),
+    ...(preference.comment ? { localComment: preference.comment } : {}),
+  };
   if (!preference.activated || !preference.recurrence) return withUserPreference;
   const dates = recurringDates(preference.recurrence);
   return dates.length > 0 ? { ...withUserPreference, deadline: dates[0], reportingWindowStart: dates[0], deadlineDates: dates } : withUserPreference;
@@ -240,6 +246,7 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
   const existing = demoStore.preferences(user.id, orgNumber.replace(/\s/g, '')).find((item) => item.obligationId === obligationId);
   const status = body.status === undefined ? existing?.status : normalizeTaskStatus(body.status);
   if (body.status !== undefined && !status) return reply.code(400).send({ message: 'Ugyldig oppgavestatus.' });
+  const hasDeadlineOverride = Object.prototype.hasOwnProperty.call(body, 'deadlineOverride');
   const preference: TaskPreference = {
     userId: user.id,
     orgNumber: orgNumber.replace(/\s/g, ''),
@@ -248,6 +255,7 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
     comment: body.comment === undefined ? existing?.comment : typeof body.comment === 'string' ? body.comment.slice(0, 2000) : undefined,
     recurrence: body.recurrence ?? existing?.recurrence,
     status,
+    deadlineOverride: hasDeadlineOverride ? (typeof body.deadlineOverride === 'string' && body.deadlineOverride ? body.deadlineOverride : undefined) : existing?.deadlineOverride,
     hiddenUntil: body.hiddenForever !== undefined ? body.hiddenUntil : body.hiddenUntil ?? existing?.hiddenUntil,
     hiddenForever: body.hiddenForever ?? existing?.hiddenForever ?? false,
   };

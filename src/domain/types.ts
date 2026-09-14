@@ -42,6 +42,8 @@ export interface TaskPreference {
   comment?: string;
   recurrence?: TaskRecurrence;
   status?: TaskStatus;
+  /** A user-local deadline; official register data must remain unchanged. */
+  deadlineOverride?: string | null;
   hiddenUntil?: string;
   hiddenForever?: boolean;
 }
@@ -96,6 +98,9 @@ export interface Obligation {
   status: TaskStatus;
   /** User-local visibility preference; official obligation data remains unchanged. */
   isHidden?: boolean;
+  /** User-local adjustments, kept separate from official obligation fields. */
+  localDeadline?: string;
+  localComment?: string;
   trigger: ObligationTrigger;
   eventLabel?: string;
   registerId?: string;

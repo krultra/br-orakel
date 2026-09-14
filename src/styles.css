@@ -31,4 +31,9 @@ button { cursor: pointer; }
 .visibility-section select, .visibility-section input { max-width: 180px; }
 .visibility-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .hidden-note { display: flex; align-items: center; gap: 5px; color: #64748b; }
+.local-note { color: #285579; background: #e0f2fe; border-radius: 999px; padding: 3px 7px; font-size: 10px; }
+.local-details { background: #f8fbff; border: 1px solid #d8e7f6; border-radius: 9px; padding: 12px; }
+.local-details > p { margin: 5px 0 10px; }
+.local-details > button { margin-top: 10px; }
+.local-comment { display: grid; gap: 5px; color: #334155; font-size: 12px; margin-top: 10px; }
 @media (max-width: 1100px) { .main-column, .side-column { max-height: none; overflow: visible; padding-right: 0; } }

@@ -23,8 +23,12 @@ test('DemoStore oppretter bruker, virksomhetsfavoritt og personlig oppgaveprefer
       obligationId: 'obl-ny-ansatt',
       activated: true,
       recurrence: { frequency: 'monthly', interval: 1, dayOfMonth: 5, startDate: '2026-09-01' },
+      deadlineOverride: '2026-09-12',
+      comment: 'Følg opp med regnskapsfører.',
     });
     assert.equal(store.preferences(user.id, '999999999')[0]?.obligationId, 'obl-ny-ansatt');
+    assert.equal(store.preferences(user.id, '999999999')[0]?.deadlineOverride, '2026-09-12');
+    assert.equal(store.preferences(user.id, '999999999')[0]?.comment, 'Følg opp med regnskapsfører.');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
