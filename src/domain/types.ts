@@ -102,6 +102,8 @@ export interface Obligation {
   statusByDate?: Record<string, TaskStatus>;
   /** User-local visibility preference; official obligation data remains unchanged. */
   isHidden?: boolean;
+  /** User-local membership in the worklist; official obligations stay in the catalogue. */
+  isActivated?: boolean;
   /** User-local adjustments, kept separate from official obligation fields. */
   localDeadline?: string;
   localComment?: string;

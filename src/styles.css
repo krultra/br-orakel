@@ -57,5 +57,8 @@ button { cursor: pointer; }
 .no-date-list .calendar-item { grid-template-columns: 8px minmax(0, 1fr); }
 .no-date-list .calendar-item small { white-space: normal; }
 .no-date-empty { color: #64748b; font-size: 12px; margin: 8px 0; }
+.calendar-caption { display: block; margin-top: 5px; color: #64748b; font-size: 12px; }
+.worklist-section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
+.worklist-section p { margin: 5px 0 10px; color: #64748b; font-size: 13px; }
 @media (max-width: 1100px) { .main-column, .side-column { max-height: none; overflow: visible; padding-right: 0; } }
 @media (max-width: 780px) { .no-date-controls { display: grid; }.no-date-controls select { max-width: none; }.no-date-hint { text-align: left; } }

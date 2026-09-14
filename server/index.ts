@@ -98,7 +98,7 @@ function normalizeTaskStatus(status: unknown): TaskPreference['status'] {
 }
 
 function applyPreference(obligation: Obligation, preference?: TaskPreference): Obligation {
-  if (!preference) return obligation;
+  if (!preference) return { ...obligation, isActivated: false };
   const status = normalizeTaskStatus(preference.status);
   const today = new Date().toISOString().slice(0, 10);
   const isHidden = preference.hiddenForever === true || Boolean(preference.hiddenUntil && preference.hiddenUntil >= today);
@@ -110,6 +110,7 @@ function applyPreference(obligation: Obligation, preference?: TaskPreference): O
     : status ?? obligation.status;
   const withUserPreference = {
     ...obligation,
+    isActivated: preference.activated === true,
     status: aggregateRecurringStatus(baseStatus, obligation.deadlineDates, preference.statusByDate),
     ...(preference.statusByDate ? { statusByDate: preference.statusByDate } : {}),
     isHidden,
