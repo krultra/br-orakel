@@ -62,7 +62,10 @@ Vanlige bygg bruker `0.0.z`. For en demo-release kan deployen få for eksempel
 
 Oppgaver uten fast offisiell frist kan aktiveres fra oppgavedetaljene med en
 lokal, gjentakende frist. Den lokale fristen er en brukerinnstilling og endrer
-ikke opplysningene fra Oppgaveregisteret.
+ikke opplysningene fra Oppgaveregisteret. Arbeidslisten viser bare oppgaver
+brukeren aktivt har valgt. Kalenderen viser et rullerende vindu på tolv måneder,
+og lokal frist, kommentar og skjuling kan lagres for en enkelt forekomst eller
+for hele oppgaven.
 
 ## Samarbeid med flere agenter
 

@@ -58,6 +58,21 @@ button { cursor: pointer; }
 .no-date-list .calendar-item small { white-space: normal; }
 .no-date-empty { color: #64748b; font-size: 12px; margin: 8px 0; }
 .calendar-caption { display: block; margin-top: 5px; color: #64748b; font-size: 12px; }
+.calendar-controls { display: flex; align-items: center; flex-wrap: wrap; justify-content: end; gap: 6px; color: #64748b; font-size: 12px; }
+.calendar-nav, .calendar-today { display: inline-grid; place-items: center; border: 1px solid #d5dee8; border-radius: 7px; background: #fff; color: #285579; min-height: 32px; padding: 0 8px; }
+.calendar-today { font-size: 11px; }
+.calendar-nav:hover, .calendar-today:hover { border-color: #7eb3e5; background: #eff6ff; }
+.calendar-item.deadline-soon { background: #fffbeb; border-radius: 5px; padding-left: 4px; }
+.calendar-item.deadline-overdue { background: #fff1f2; border-radius: 5px; padding-left: 4px; }
+.calendar-item.deadline-completed { background: #f0fdf4; border-radius: 5px; padding-left: 4px; }
+.calendar-item.deadline-overdue small, .deadline-label.deadline-overdue { color: #b91c1c; font-weight: 700; }
+.calendar-item.deadline-soon small, .deadline-label.deadline-soon { color: #a16207; font-weight: 700; }
+.deadline-label { display: block; font-size: 10px; margin-top: 2px; }
+.task-row.deadline-overdue { border-left: 4px solid #dc2626; }
+.task-row.deadline-soon { border-left: 4px solid #d97706; }
+.task-row.deadline-completed { border-left: 4px solid #16a34a; }
+.visibility-scope { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 11px; margin-top: 8px; }
+.visibility-scope select { padding: 7px 9px; border: 1px solid #d5dee8; border-radius: 7px; background: #fff; color: #334155; }
 .worklist-section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
 .worklist-section p { margin: 5px 0 10px; color: #64748b; font-size: 13px; }
 @media (max-width: 1100px) { .main-column, .side-column { max-height: none; overflow: visible; padding-right: 0; } }

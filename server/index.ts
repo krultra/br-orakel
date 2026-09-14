@@ -77,14 +77,17 @@ function dateForYear(year: number, month: number, day: number): string | undefin
 function recurringDates(recurrence: TaskRecurrence): string[] {
   const start = new Date(`${recurrence.startDate}T00:00:00`);
   if (Number.isNaN(start.getTime())) return [];
-  const year = start.getFullYear();
   const dates: string[] = [];
   const interval = Math.max(1, Math.floor(recurrence.interval || 1));
   const step = recurrence.frequency === 'monthly' ? interval : recurrence.frequency === 'quarterly' ? interval * 3 : interval * 12;
-  for (let month = 0; month < 12; month += 1) {
-    if (month % step !== start.getMonth() % step) continue;
-    const date = dateForYear(year, month, Math.min(31, Math.max(1, recurrence.dayOfMonth)));
-    if (date && date >= recurrence.startDate && (!recurrence.endDate || date <= recurrence.endDate)) dates.push(date);
+  const currentYear = new Date().getFullYear();
+  for (let year = currentYear - 1; year <= currentYear + 2; year += 1) {
+    for (let month = 0; month < 12; month += 1) {
+      const monthIndex = (year - start.getFullYear()) * 12 + month;
+      if (monthIndex < 0 || monthIndex % step !== start.getMonth() % step) continue;
+      const date = dateForYear(year, month, Math.min(31, Math.max(1, recurrence.dayOfMonth)));
+      if (date && date >= recurrence.startDate && (!recurrence.endDate || date <= recurrence.endDate)) dates.push(date);
+    }
   }
   return dates;
 }
@@ -95,6 +98,16 @@ function normalizeTaskStatus(status: unknown): TaskPreference['status'] {
   if (status === 'submitted') return 'completed';
   if (status === 'not_applicable' || status === 'needs_clarification') return 'not_started';
   return undefined;
+}
+
+function validDateKey(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function normalizedDateMap(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value).filter(([date, item]) => validDateKey(date) && typeof item === 'string' && item.length > 0);
+  return entries.length ? Object.fromEntries(entries) : {};
 }
 
 function applyPreference(obligation: Obligation, preference?: TaskPreference): Obligation {
@@ -113,6 +126,11 @@ function applyPreference(obligation: Obligation, preference?: TaskPreference): O
     isActivated: preference.activated === true,
     status: aggregateRecurringStatus(baseStatus, obligation.deadlineDates, preference.statusByDate),
     ...(preference.statusByDate ? { statusByDate: preference.statusByDate } : {}),
+    ...(preference.deadlineByDate ? { deadlineByDate: preference.deadlineByDate } : {}),
+    ...(preference.commentByDate ? { localCommentByDate: preference.commentByDate } : {}),
+    ...(preference.hiddenByDate ? {
+      hiddenByDate: Object.fromEntries(Object.entries(preference.hiddenByDate).map(([date, hidden]) => [date, hidden.hiddenForever === true || Boolean(hidden.hiddenUntil && hidden.hiddenUntil >= today)])),
+    } : {}),
     isHidden,
     ...(preference.deadlineOverride ? { localDeadline: preference.deadlineOverride } : {}),
     ...(preference.comment ? { localComment: preference.comment } : {}),
@@ -251,7 +269,7 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
   const user = sessionUser(request);
   if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer oppgaver.' });
   const { orgNumber, obligationId } = request.params as { orgNumber: string; obligationId: string };
-  const body = request.body as Partial<TaskPreference>;
+  const body = request.body as Partial<TaskPreference> & { occurrenceDate?: string; hiddenScope?: 'instance' | 'all' };
   const existing = demoStore.preferences(user.id, orgNumber.replace(/\s/g, '')).find((item) => item.obligationId === obligationId);
   const status = body.status === undefined ? existing?.status : normalizeTaskStatus(body.status);
   if (body.status !== undefined && !status) return reply.code(400).send({ message: 'Ugyldig oppgavestatus.' });
@@ -262,6 +280,23 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
       return normalized ? [[date, normalized]] : [];
     }),
   );
+  const occurrenceDate = validDateKey(body.occurrenceDate) ? body.occurrenceDate : undefined;
+  const deadlineByDate = body.deadlineByDate === undefined ? { ...(existing?.deadlineByDate ?? {}) } : (normalizedDateMap(body.deadlineByDate) ?? {});
+  const commentByDate = body.commentByDate === undefined ? { ...(existing?.commentByDate ?? {}) } : (normalizedDateMap(body.commentByDate) ?? {});
+  if (occurrenceDate && Object.prototype.hasOwnProperty.call(body, 'deadlineOverride')) {
+    if (typeof body.deadlineOverride === 'string' && body.deadlineOverride) deadlineByDate[occurrenceDate] = body.deadlineOverride;
+    else delete deadlineByDate[occurrenceDate];
+  }
+  if (occurrenceDate && Object.prototype.hasOwnProperty.call(body, 'comment')) {
+    if (typeof body.comment === 'string' && body.comment) commentByDate[occurrenceDate] = body.comment.slice(0, 2000);
+    else delete commentByDate[occurrenceDate];
+  }
+  const hiddenByDate = body.hiddenByDate === undefined ? { ...(existing?.hiddenByDate ?? {}) } : { ...body.hiddenByDate };
+  if (occurrenceDate && body.hiddenScope === 'instance' && (body.hiddenUntil !== undefined || body.hiddenForever !== undefined)) {
+    if (body.hiddenForever === true || (typeof body.hiddenUntil === 'string' && body.hiddenUntil)) hiddenByDate[occurrenceDate] = { hiddenUntil: body.hiddenUntil, hiddenForever: body.hiddenForever };
+    else delete hiddenByDate[occurrenceDate];
+  }
+  const instanceHiddenChange = Boolean(occurrenceDate && body.hiddenScope === 'instance' && (body.hiddenUntil !== undefined || body.hiddenForever !== undefined));
   const preference: TaskPreference = {
     userId: user.id,
     orgNumber: orgNumber.replace(/\s/g, ''),
@@ -271,9 +306,12 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
     recurrence: body.recurrence ?? existing?.recurrence,
     status,
     statusByDate,
+    deadlineByDate,
+    commentByDate,
+    hiddenByDate,
     deadlineOverride: hasDeadlineOverride ? (typeof body.deadlineOverride === 'string' && body.deadlineOverride ? body.deadlineOverride : undefined) : existing?.deadlineOverride,
-    hiddenUntil: body.hiddenForever !== undefined ? body.hiddenUntil : body.hiddenUntil ?? existing?.hiddenUntil,
-    hiddenForever: body.hiddenForever ?? existing?.hiddenForever ?? false,
+    hiddenUntil: instanceHiddenChange ? existing?.hiddenUntil : body.hiddenForever !== undefined ? body.hiddenUntil : body.hiddenUntil ?? existing?.hiddenUntil,
+    hiddenForever: instanceHiddenChange ? existing?.hiddenForever ?? false : body.hiddenForever ?? existing?.hiddenForever ?? false,
   };
   return demoStore.savePreference(user.id, preference);
 });

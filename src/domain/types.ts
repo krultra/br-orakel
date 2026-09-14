@@ -44,10 +44,22 @@ export interface TaskPreference {
   status?: TaskStatus;
   /** User-local status per recurring deadline instance. */
   statusByDate?: Record<string, TaskStatus>;
+  /** User-local deadline overrides keyed by the official occurrence date. */
+  deadlineByDate?: Record<string, string>;
+  /** User-local comments keyed by the official occurrence date. */
+  commentByDate?: Record<string, string>;
+  /** User-local visibility overrides keyed by the official occurrence date. */
+  hiddenByDate?: Record<string, { hiddenUntil?: string; hiddenForever?: boolean }>;
   /** A user-local deadline; official register data must remain unchanged. */
   deadlineOverride?: string | null;
   hiddenUntil?: string;
   hiddenForever?: boolean;
+}
+
+export interface TaskPreferenceUpdate extends Partial<TaskPreference> {
+  /** The occurrence being edited; omitted for whole-obligation changes. */
+  occurrenceDate?: string;
+  hiddenScope?: 'instance' | 'all';
 }
 
 export interface Source {
@@ -100,6 +112,12 @@ export interface Obligation {
   status: TaskStatus;
   /** User-local status per recurring deadline instance. */
   statusByDate?: Record<string, TaskStatus>;
+  /** User-local deadline overrides keyed by the official occurrence date. */
+  deadlineByDate?: Record<string, string>;
+  /** User-local comments keyed by the official occurrence date. */
+  localCommentByDate?: Record<string, string>;
+  /** User-local visibility overrides keyed by the official occurrence date. */
+  hiddenByDate?: Record<string, boolean>;
   /** User-local visibility preference; official obligation data remains unchanged. */
   isHidden?: boolean;
   /** User-local membership in the worklist; official obligations stay in the catalogue. */
