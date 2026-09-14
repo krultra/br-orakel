@@ -7,7 +7,7 @@
     "dev": "concurrently -k \"npm:dev:api\" \"npm:dev:web\"",
     "dev:web": "vite",
     "dev:api": "node --import tsx --watch server/index.ts",
-    "build": "tsc -b && vite build",
+    "build": "node --import tsx scripts/build.ts",
     "start": "node --import tsx server/index.ts",
     "typecheck": "tsc -b --pretty false",
     "import": "node --import tsx scripts/import-dataset.ts",

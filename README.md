@@ -53,7 +53,7 @@ ORaKeL viser versjon i toppnavigasjonen som `0.y.z`:
 
 - `0` er hovednivået under hackathonet.
 - `y` er demo-release og økes bare når en versjon eksplisitt publiseres til `demo.krultra.no`.
-- `z` er byggidentifikatoren og settes automatisk til byggtidspunktet i sekunder, slik at hvert nytt bygg får en ny variant.
+- `z` er et lokalt sekvensielt byggnummer som starter på 1 og økes for hvert nytt bygg.
 
 Vanlige bygg bruker `0.0.z`. For en demo-release kan deployen få for eksempel
 `ORAKEL_DEMO_RELEASE=1`. `scripts/deploy-pi-tok.sh` deployer bare til

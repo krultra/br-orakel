@@ -7,7 +7,7 @@ set -euo pipefail
 remote_host="${BR_ORAKEL_REMOTE_HOST:-pi-tok}"
 remote_dir="${BR_ORAKEL_REMOTE_DIR:-/home/tkruke/services/br-orakel}"
 target="${BR_ORAKEL_DEPLOY_TARGET:-test}"
-build_number="${ORAKEL_BUILD_NUMBER:-$(date +%s)}"
+build_number="${ORAKEL_BUILD_NUMBER:-$(node --import tsx scripts/next-build-number.ts)}"
 demo_release="${ORAKEL_DEMO_RELEASE:-0}"
 environment_name="$target"
 

@@ -8,3 +8,4 @@ data/warehouse/*.parquet
 .env
 .DS_Store
 *.tsbuildinfo
+.orakel-build-number
