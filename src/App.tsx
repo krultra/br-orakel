@@ -285,7 +285,14 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
   const [question, setQuestion] = useState('Hvilke oppgaver gjelder for oss nå?');
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const ask = async () => { if (!question.trim()) return; setIsLoading(true); try { setAnswer(await api.chat(question, orgNumber)); } finally { setIsLoading(false); } };
+  const [chatError, setChatError] = useState('');
+  const [isSlow, setIsSlow] = useState(false);
+  useEffect(() => {
+    if (!isLoading) { setIsSlow(false); return undefined; }
+    const timer = window.setTimeout(() => setIsSlow(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
+  const ask = async () => { if (!question.trim() || isLoading) return; setChatError(''); setIsLoading(true); try { setAnswer(await api.chat(question, orgNumber)); } catch (error) { setChatError(error instanceof Error ? error.message : 'Losen kunne ikke svare akkurat nå.'); } finally { setIsLoading(false); } };
   const handleQuestionKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault();
@@ -293,7 +300,7 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
     }
   };
   const answerSources = sources.filter((source) => answer?.sourceIds.includes(source.id));
-  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{answer ? <><FormattedAnswer text={answer.answer} /><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label="Send spørsmål" onClick={() => void ask()} disabled={isLoading}><Send size={16} /></Button></div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
+  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <><FormattedAnswer text={answer.answer} /><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}{isLoading && <div className="chat-loading"><Sparkles size={15} /> Losen arbeider…{isSlow && <span>Dette kan ta opptil et halvt minutt når mange oppgaver skal vurderes.</span>}</div>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label="Send spørsmål" onClick={() => void ask()} disabled={isLoading}>{isLoading ? 'Venter…' : <Send size={16} />}</Button></div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
 }
 
 function ReportDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
