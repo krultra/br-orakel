@@ -46,4 +46,16 @@ button { cursor: pointer; }
 .task-search { min-width: 180px; flex: 1 1 180px; }
 .task-empty { display: grid; gap: 4px; border: 1px dashed #b8c9d9; border-radius: 11px; padding: 18px; color: #475569; background: #f8fbff; }
 .task-empty span { font-size: 12px; color: #64748b; }
+.no-date-panel { grid-column: 1 / -1; }
+.no-date-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.no-date-heading small, .no-date-hint { color: #64748b; font-size: 11px; }
+.no-date-hint { text-align: right; }
+.no-date-controls { display: flex; gap: 8px; align-items: end; margin: 8px 0; }
+.no-date-search { flex: 1 1 260px; min-width: 0; }
+.no-date-controls select { max-width: 260px; padding: 8px 11px; border: 1px solid #d5dee8; border-radius: 7px; background: #fff; color: #334155; font-size: 12px; }
+.no-date-list { max-height: 250px; overflow-y: auto; display: grid; gap: 2px; padding-right: 4px; }
+.no-date-list .calendar-item { grid-template-columns: 8px minmax(0, 1fr); }
+.no-date-list .calendar-item small { white-space: normal; }
+.no-date-empty { color: #64748b; font-size: 12px; margin: 8px 0; }
 @media (max-width: 1100px) { .main-column, .side-column { max-height: none; overflow: visible; padding-right: 0; } }
+@media (max-width: 780px) { .no-date-controls { display: grid; }.no-date-controls select { max-width: none; }.no-date-hint { text-align: left; } }

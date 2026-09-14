@@ -25,6 +25,10 @@ function effectiveDeadline(obligation: Obligation) {
   return obligation.localDeadline ?? obligation.deadline;
 }
 
+function isEventLike(obligation: Obligation) {
+  return obligation.trigger === 'event' || (!obligation.deadline && !obligation.deadlineDates?.length && !obligation.localDeadline);
+}
+
 function FormattedAnswer({ text }: { text: string }) {
   const inline = (value: string): ReactNode[] => value.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_)/g).filter(Boolean).map((part, index) => {
     if ((part.startsWith('**') && part.endsWith('**')) || (part.startsWith('__') && part.endsWith('__'))) return <strong key={index}>{part.slice(2, -2)}</strong>;
@@ -198,11 +202,12 @@ function Overview({ organization, obligations, allObligations, sources, selected
   const mainColumnRef = useRef<HTMLDivElement>(null);
   const mainScrollTop = useRef(0);
   const preserveMainScroll = (change: () => void) => { mainScrollTop.current = mainColumnRef.current?.scrollTop ?? 0; change(); };
-  const eventOptions = useMemo(() => [...new Set(allObligations.filter((item) => item.trigger === 'event').map((item) => item.eventLabel || item.name))].sort((left, right) => left.localeCompare(right, 'nb')), [allObligations]);
+  const eventOptions = useMemo(() => [...new Set(allObligations.filter(isEventLike).map((item) => item.eventLabel || item.name))].sort((left, right) => left.localeCompare(right, 'nb')), [allObligations]);
   const filteredTaskObligations = useMemo(() => {
     const query = taskQuery.trim().toLocaleLowerCase('nb-NO');
     return obligations.filter((item) => {
-      if (taskTypeFilter !== 'all' && item.trigger !== taskTypeFilter) return false;
+      if (taskTypeFilter === 'event' && !isEventLike(item)) return false;
+      if (taskTypeFilter === 'periodic' && isEventLike(item)) return false;
       if (taskTypeFilter === 'event' && eventFilter !== 'all' && (item.eventLabel || item.name) !== eventFilter) return false;
       if (!query) return true;
       return `${item.name} ${item.description} ${item.responsibleAgency} ${item.eventLabel ?? ''}`.toLocaleLowerCase('nb-NO').includes(query);
@@ -246,7 +251,22 @@ function YearWheel({ obligations, selectedId, selectedOccurrenceDate, onSelect }
     }
     return [...buckets, { month: 'Uten fast frist', items: noDateItems }];
   }, [obligations]);
-  return <div className="year-wheel">{grouped.map(({ month, items }) => <div className={`month-cell ${items.length ? 'has-items' : ''}`} key={month}><span className="month-label">{month}</span>{items.map(({ item, date }) => { const itemStatus = statusForDate(item.status, date, item.statusByDate); return <button key={`${item.id}-${date ?? 'no-date'}`} className={`calendar-item ${statusClass[itemStatus]} ${selectedId === item.id && selectedOccurrenceDate === date ? 'is-selected' : ''}`} onClick={() => onSelect(item.id, date)}><span className="calendar-dot" />{item.name}<small>{formatDate(date ?? effectiveDeadline(item))} · {statusLabels[itemStatus]}</small></button>; })}</div>)}</div>;
+  return <div className="year-wheel">{grouped.map(({ month, items }) => month === 'Uten fast frist' ? <NoDatePanel key={month} items={items} selectedId={selectedId} onSelect={onSelect} /> : <div className={`month-cell ${items.length ? 'has-items' : ''}`} key={month}><span className="month-label">{month}</span>{items.map(({ item, date }) => { const itemStatus = statusForDate(item.status, date, item.statusByDate); return <button key={`${item.id}-${date ?? 'no-date'}`} className={`calendar-item ${statusClass[itemStatus]} ${selectedId === item.id && selectedOccurrenceDate === date ? 'is-selected' : ''}`} onClick={() => onSelect(item.id, date)}><span className="calendar-dot" />{item.name}<small>{formatDate(date ?? effectiveDeadline(item))} · {statusLabels[itemStatus]}</small></button>; })}</div>)}</div>;
+}
+
+function NoDatePanel({ items, selectedId, onSelect }: { items: Array<{ item: Obligation; date?: string }>; selectedId?: string; onSelect: (id: string, date?: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [eventFilter, setEventFilter] = useState('all');
+  const eventOptions = useMemo(() => [...new Set(items.map(({ item }) => item.eventLabel || item.name))].sort((left, right) => left.localeCompare(right, 'nb')), [items]);
+  const filtered = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase('nb-NO');
+    return items.filter(({ item }) => {
+      if (eventFilter !== 'all' && (item.eventLabel || item.name) !== eventFilter) return false;
+      if (!normalizedQuery) return true;
+      return `${item.name} ${item.description} ${item.responsibleAgency} ${item.eventLabel ?? ''} ${item.legalBasis}`.toLocaleLowerCase('nb-NO').includes(normalizedQuery);
+    });
+  }, [eventFilter, items, query]);
+  return <div className="month-cell no-date-panel has-items"><div className="no-date-heading"><div><span className="month-label">Uten fast frist</span><small>{filtered.length} av {items.length} oppgaver</small></div><span className="no-date-hint">Velg oppgave og aktiver en lokal frist ved behov</span></div><div className="no-date-controls"><Textfield className="no-date-search" aria-label="Søk i oppgaver uten fast frist" placeholder="Søk etter hendelse eller oppgave" value={query} onChange={(event) => setQuery(event.target.value)} /><select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} aria-label="Filtrer oppgaver uten fast frist"><option value="all">Alle hendelser</option>{eventOptions.map((event) => <option value={event} key={event}>{event}</option>)}</select></div><div className="no-date-list">{filtered.length > 0 ? filtered.map(({ item }) => { const itemStatus = statusForDate(item.status, undefined, item.statusByDate); return <button key={item.id} className={`calendar-item ${statusClass[itemStatus]} ${selectedId === item.id ? 'is-selected' : ''}`} onClick={() => onSelect(item.id)}><span className="calendar-dot" /><span>{item.name}</span><small>{item.eventLabel || item.frequency} · {statusLabels[itemStatus]}</small></button>; }) : <p className="no-date-empty">Ingen oppgaver matcher søket.</p>}</div></div>;
 }
 
 function ObligationList({ obligations, selectedId, onSelect }: { obligations: Obligation[]; selectedId?: string; onSelect: (id: string) => void }) {
@@ -254,7 +274,7 @@ function ObligationList({ obligations, selectedId, onSelect }: { obligations: Ob
 }
 
 function TaskRow({ obligation, selected, onClick }: { obligation: Obligation; selected: boolean; onClick: () => void }) {
-  return <button className={`task-row ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[obligation.status]}`}>{obligation.trigger === 'event' ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} />{obligation.localComment && <span className="local-note">Kommentar</span>}{obligation.isHidden && <span className="hidden-label"><EyeOff size={12} /> Skjult</span>}</div><span>{obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>{obligation.localDeadline ? 'Lokal frist' : 'Frist'}</small><strong>{formatDate(effectiveDeadline(obligation))}</strong></div><div className="task-status"><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span><ChevronRight size={18} /></div></button>;
+  return <button className={`task-row ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[obligation.status]}`}>{isEventLike(obligation) ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} />{obligation.localComment && <span className="local-note">Kommentar</span>}{obligation.isHidden && <span className="hidden-label"><EyeOff size={12} /> Skjult</span>}</div><span>{obligation.eventLabel || obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>{obligation.localDeadline ? 'Lokal frist' : 'Frist'}</small><strong>{formatDate(effectiveDeadline(obligation))}</strong></div><div className="task-status"><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span><ChevronRight size={18} /></div></button>;
 }
 
 function ObligationDetail({ orgNumber, obligation, occurrenceDate, sources, onTaskChanged }: { orgNumber: string; obligation: Obligation | null; occurrenceDate: string | null; sources: Source[]; onTaskChanged: (nextSelectedId?: string | null) => void }) {
