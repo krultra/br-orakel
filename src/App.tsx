@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CalendarDays, Check, ChevronRight, CircleHelp, Clock3, FileCheck2, Filter, Landmark, MessageCircle, Plus, Search, Send, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
-import type { ChatAnswer, Obligation, Organization, Source, TaskStatus, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, DemoUser, Obligation, Organization, Source, TaskStatus, UserReportedRequirement } from './domain/types';
 
 const statusLabels: Record<TaskStatus, string> = {
   not_started: 'Ikke startet', in_progress: 'Pågår', ready: 'Klar til innsending', submitted: 'Sendt inn', completed: 'Fullført', not_applicable: 'Ikke relevant', needs_clarification: 'Avklar først',
@@ -23,7 +23,10 @@ function TrustLabel({ level }: { level: string }) {
 }
 
 function App() {
+  const [user, setUser] = useState<DemoUser | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [orgNumber, setOrgNumber] = useState('');
+  const [savedOrganizations, setSavedOrganizations] = useState<Organization[]>([]);
   const [organizationSearchResults, setOrganizationSearchResults] = useState<Organization[]>([]);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [obligations, setObligations] = useState<Obligation[]>([]);
@@ -66,42 +69,95 @@ function App() {
   };
 
   useEffect(() => {
-    void api.health().then((health) => {
-      if (health.organizationProvider === 'mock') {
-        setOrgNumber('999999999');
-        void loadOrganization('999999999');
+    void api.me().then(async (nextUser) => {
+      setUser(nextUser);
+      const organizationsForUser = await api.myOrganizations();
+      setSavedOrganizations(organizationsForUser);
+      if (nextUser.role === 'caseworker') setReports(await api.reports());
+      if (organizationsForUser[0]) {
+        setOrgNumber(organizationsForUser[0].orgNumber);
+        await loadOrganization(organizationsForUser[0].orgNumber);
       }
-    }).catch(() => undefined);
+    }).catch(() => undefined).finally(() => setAuthChecking(false));
   }, []);
+
+  const addCurrentOrganization = async () => {
+    if (!organization) return;
+    try {
+      const nextUser = await api.addMyOrganization(organization.orgNumber);
+      setUser(nextUser);
+      setSavedOrganizations(await api.myOrganizations());
+      setToast('Virksomheten er lagt til i Mine virksomheter.');
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Kunne ikke lagre virksomheten.');
+    }
+  };
+
+  const signOut = async () => {
+    await api.logout();
+    setUser(null);
+    setOrganization(null);
+    setObligations([]);
+  };
+
+  const handleAuthenticated = async (nextUser: DemoUser) => {
+    setUser(nextUser);
+    const organizationsForUser = await api.myOrganizations();
+    setSavedOrganizations(organizationsForUser);
+    if (nextUser.role === 'caseworker') setReports(await api.reports());
+    if (organizationsForUser[0]) {
+      setOrgNumber(organizationsForUser[0].orgNumber);
+      await loadOrganization(organizationsForUser[0].orgNumber);
+    }
+  };
+
+  if (authChecking) return <div className="auth-shell"><p>Laster ORaKeL…</p></div>;
+  if (!user) return <AuthScreen onAuthenticated={(nextUser) => { void handleAuthenticated(nextUser); }} />;
 
   const selectedObligation = obligations.find((item) => item.id === selectedObligationId) ?? null;
   const filteredObligations = statusFilter === 'all' ? obligations : obligations.filter((item) => item.status === statusFilter);
 
   return <div className="app-shell">
     <header className="topbar">
-      <div className="brand-lockup"><div className="brand-mark">R</div><div><strong>Rapporteringsløsen</strong><span>KI-assistert oversikt for virksomheter</span></div></div>
-      <nav aria-label="Hovednavigasjon" className="topnav">
-        <button className={view === 'overview' ? 'nav-link active' : 'nav-link'} onClick={() => setView('overview')}><CalendarDays size={17} /> Min oversikt</button>
-        <button className={view === 'admin' ? 'nav-link active' : 'nav-link'} onClick={() => setView('admin')}><Landmark size={17} /> Saksbehandler</button>
-      </nav>
-      <div className="user-pill"><div className="avatar">KN</div><span>Kari Nordmann</span></div>
+      <div className="brand-lockup"><img src="/orakel-logo.svg" alt="ORaKeL" /><div><strong>ORaKeL</strong><span>KI-assistert rapporteringslos</span></div></div>
+      <div className="user-pill"><div className="avatar">{user.displayName.slice(0, 2).toUpperCase()}</div><span>{user.displayName}</span><small>{user.role === 'caseworker' ? 'Saksbehandler' : 'Virksomhet'}</small><button onClick={() => void signOut()}>Logg ut</button></div>
     </header>
 
     <main className="page-container">
-      <section className="hero-row">
-        <div><p className="eyebrow">MVP · BRREG-data + mockutvidelser</p><Heading level={1} data-size="2xl">Hold oversikten over rapporteringen</Heading><Paragraph>Én samlet arbeidsflate for plikter, frister, kilder og avklaringer.</Paragraph></div>
-        <div className="org-picker"><label htmlFor="org-number">Virksomhet</label><div className="org-input-row"><Textfield id="org-number" value={orgNumber} onChange={(event) => { setOrgNumber(event.target.value); setOrganizationSearchResults([]); }} placeholder="Navn eller organisasjonsnummer" aria-label="Navn eller organisasjonsnummer" /><Button onClick={() => void searchOrganizations()} disabled={loading || searchingOrganizations}>{loading ? 'Laster…' : searchingOrganizations ? 'Søker…' : 'Søk'}</Button></div><span className="field-hint">Søk på navn eller ni siffer. Mockbedriften er 999999999.</span>{organizationSearchResults.length > 0 && <div className="org-search-results" aria-label="Søkeresultater">{organizationSearchResults.map((item) => <button key={item.orgNumber} className="org-search-result" onClick={() => { setOrgNumber(item.orgNumber); void loadOrganization(item.orgNumber); }}><strong>{item.name}</strong><span>{item.orgNumber} · {item.organizationForm} · {item.municipality || 'Kommune ikke oppgitt'}</span></button>)}</div>}</div>
-      </section>
+      {user.role === 'business' && <section className="hero-row">
+        <div><p className="eyebrow">MVP · BRREG-data + godkjente kilder</p><Heading level={1} data-size="2xl">Hold oversikten over rapporteringen</Heading><Paragraph>Én samlet arbeidsflate for plikter, frister, kilder og avklaringer.</Paragraph></div>
+        <div className="org-picker"><label htmlFor="saved-organizations">Mine virksomheter</label><select id="saved-organizations" value="" onChange={(event) => { if (event.target.value) { setOrgNumber(event.target.value); void loadOrganization(event.target.value); } }}><option value="">Velg lagret virksomhet…</option>{savedOrganizations.map((item) => <option key={item.orgNumber} value={item.orgNumber}>{item.name} ({item.orgNumber})</option>)}</select><div className="org-input-row"><Textfield id="org-number" value={orgNumber} onChange={(event) => { setOrgNumber(event.target.value); setOrganizationSearchResults([]); }} placeholder="Søk på navn eller organisasjonsnummer" aria-label="Søk på navn eller organisasjonsnummer" /><Button onClick={() => void searchOrganizations()} disabled={loading || searchingOrganizations}>{loading ? 'Laster…' : searchingOrganizations ? 'Søker…' : 'Søk'}</Button></div><span className="field-hint">Søk på navn eller ni siffer. Velg deretter «Legg til» for å lagre virksomheten.</span>{organization && !savedOrganizations.some((item) => item.orgNumber === organization.orgNumber) && <Button variant="secondary" onClick={() => void addCurrentOrganization()}>Legg til i Mine virksomheter</Button>}{organizationSearchResults.length > 0 && <div className="org-search-results" aria-label="Søkeresultater">{organizationSearchResults.map((item) => <button key={item.orgNumber} className="org-search-result" onClick={() => { setOrgNumber(item.orgNumber); void loadOrganization(item.orgNumber); }}><strong>{item.name}</strong><span>{item.orgNumber} · {item.organizationForm} · {item.municipality || 'Kommune ikke oppgitt'}</span></button>)}</div>}</div>
+      </section>}
 
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}<button onClick={() => setToast('')} aria-label="Lukk melding"><X size={16} /></button></div>}
 
-      {view === 'overview' && organization && <Overview organization={organization} obligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} setSelectedObligationId={setSelectedObligationId} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} />}
-      {view === 'admin' && <AdminView reports={reports} onStatusChange={async (id, status) => { const updated = await api.updateReport(id, status); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
+      {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status) => { const updated = await api.updateReport(id, status); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
+      {user.role === 'business' && organization && <Overview organization={organization} obligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} setSelectedObligationId={setSelectedObligationId} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} onTaskChanged={() => void loadOrganization(organization.orgNumber)} />}
+      {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Søk etter virksomheten din ovenfor, velg et treff og legg den til i Mine virksomheter.</Paragraph></Card>}
     </main>
   </div>;
 }
 
-function Overview({ organization, obligations, allObligations, sources, selectedObligation, setSelectedObligationId, calendarMode, setCalendarMode, statusFilter, setStatusFilter }: { organization: Organization; obligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; setSelectedObligationId: (id: string) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void }) {
+function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: DemoUser) => void }) {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true); setError('');
+    try {
+      const user = mode === 'login' ? await api.login(username, password) : await api.register(username, displayName, password);
+      onAuthenticated(user);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Kunne ikke logge inn.');
+    } finally { setBusy(false); }
+  };
+  return <main className="auth-shell"><Card className="auth-card"><img src="/orakel-logo.svg" alt="ORaKeL" className="auth-logo" /><p className="eyebrow">Demo-tilgang</p><Heading level={1}>{mode === 'login' ? 'Logg inn i ORaKeL' : 'Opprett demo-bruker'}</Heading><Paragraph>{mode === 'login' ? 'Velg virksomhetsbruker eller saksbehandler for å starte.' : 'Brukeren lagres kun i denne hackathon-instansen.'}</Paragraph>{mode === 'register' && <Textfield label="Navn som vises" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />}{<Textfield label="Brukernavn" value={username} onChange={(event) => setUsername(event.target.value)} />}{<Textfield label="Passord" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />}{error && <Alert data-color="danger"><AlertCircle size={17} />{error}</Alert>}<Button onClick={() => void submit()} disabled={busy || !username || !password}>{busy ? 'Arbeider…' : mode === 'login' ? 'Logg inn' : 'Opprett bruker'}</Button><button className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{mode === 'login' ? 'Opprett ny virksomhetsbruker' : 'Jeg har allerede bruker'}</button>{mode === 'login' && <p className="demo-credentials">Demo-saksbehandler: <code>br-saksbehandler</code> / <code>demo</code></p>}</Card></main>;
+}
+
+function Overview({ organization, obligations, allObligations, sources, selectedObligation, setSelectedObligationId, calendarMode, setCalendarMode, statusFilter, setStatusFilter, onTaskChanged }: { organization: Organization; obligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; setSelectedObligationId: (id: string) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; onTaskChanged: () => void }) {
   const [showReport, setShowReport] = useState(false);
   return <>
     <section className="context-bar"><div className="context-company"><div className="company-icon"><Landmark size={20} /></div><div><strong>{organization.name}</strong><span>Org.nr. {organization.orgNumber} · {organization.organizationForm} · {organization.municipality}</span></div></div><div className="context-facts"><span><strong>{allObligations.length}</strong> oppgaver</span><span><strong>{allObligations.filter((item) => item.status === 'completed').length}</strong> fullført</span><span><strong>{allObligations.reduce((sum, item) => sum + item.estimatedMinutes, 0)} min</strong> estimert</span></div></section>
@@ -112,7 +168,7 @@ function Overview({ organization, obligations, allObligations, sources, selected
         <div className="task-list">{obligations.map((item) => <TaskRow key={item.id} obligation={item} selected={selectedObligation?.id === item.id} onClick={() => setSelectedObligationId(item.id)} />)}</div>
         <button className="report-cta" onClick={() => setShowReport(true)}><div className="report-cta-icon"><Plus size={20} /></div><div><strong>Finner du en plikt som mangler?</strong><span>Meld inn et mulig krav til menneskelig gjennomgang.</span></div><ChevronRight size={20} /></button>
       </div>
-      <aside className="side-column"><ChatPanel orgNumber={organization.orgNumber} sources={sources} /><SourcePanel sources={sources} /><ObligationDetail obligation={selectedObligation} sources={sources} /></aside>
+      <aside className="side-column"><ChatPanel orgNumber={organization.orgNumber} sources={sources} /><SourcePanel sources={sources} /><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} sources={sources} onTaskChanged={onTaskChanged} /></aside>
     </section>
     {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => setShowReport(false)} />}
   </>;
@@ -147,10 +203,21 @@ function TaskRow({ obligation, selected, onClick }: { obligation: Obligation; se
   return <button className={`task-row ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[obligation.status]}`}>{obligation.trigger === 'event' ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} /></div><span>{obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>Frist</small><strong>{formatDate(obligation.deadline)}</strong></div><div className="task-status"><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span><ChevronRight size={18} /></div></button>;
 }
 
-function ObligationDetail({ obligation, sources }: { obligation: Obligation | null; sources: Source[] }) {
+function ObligationDetail({ orgNumber, obligation, sources, onTaskChanged }: { orgNumber: string; obligation: Obligation | null; sources: Source[]; onTaskChanged: () => void }) {
+  const [status, setStatus] = useState<TaskStatus>('not_started');
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [frequency, setFrequency] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
+  const [interval, setInterval] = useState('1');
+  const [dayOfMonth, setDayOfMonth] = useState('5');
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState('');
+  const [comment, setComment] = useState('');
+  const [saving, setSaving] = useState(false);
   if (!obligation) return <Card className="surface-card detail-card"><Heading level={3}>Velg en oppgave</Heading><Paragraph>Klikk på en oppgave i årshjulet eller arbeidslisten for å se detaljer.</Paragraph></Card>;
   const linkedSources = sources.filter((source) => obligation.sourceLinks.includes(source.id));
-  return <Card className="surface-card detail-card"><div className="detail-topline"><span className="eyebrow">Oppgavedetaljer</span><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span></div><Heading level={3}>{obligation.name}</Heading><Paragraph>{obligation.description}</Paragraph><div className="detail-meta"><div><Clock3 size={16} /><span><small>Tidsbruk</small><strong>{obligation.estimatedMinutes} minutter</strong></span></div><div><Landmark size={16} /><span><small>Ansvarlig etat</small><strong>{obligation.responsibleAgency}</strong></span></div><div><FileCheck2 size={16} /><span><small>Lovhjemmel</small><strong>{obligation.legalBasis}</strong></span></div></div><div className="detail-section"><strong>Nødvendige data</strong><div className="tag-row">{obligation.requiredData.map((item) => <Tag key={item}>{item}</Tag>)}</div></div>{obligation.attachments.length > 0 && <div className="detail-section"><strong>Vedlegg</strong><p>{obligation.attachments.join(' · ')}</p></div>}<div className="detail-section"><strong>Kilder</strong>{linkedSources.length ? linkedSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" className="source-link" key={source.id}><ShieldCheck size={15} />{source.title}<ChevronRight size={15} /></a>) : <p className="muted">Ingen autoritativ kilde koblet ennå.</p>}</div><Button variant="secondary" className="full-width">Marker neste steg</Button></Card>;
+  const saveStatus = async (nextStatus: TaskStatus) => { setSaving(true); await api.saveTaskPreference(orgNumber, obligation.id, { status: nextStatus, activated: Boolean(obligation.deadline || obligation.deadlineDates?.length) }); setStatus(nextStatus); setSaving(false); onTaskChanged(); };
+  const activateSchedule = async () => { setSaving(true); await api.saveTaskPreference(orgNumber, obligation.id, { activated: true, comment, recurrence: { frequency, interval: Math.max(1, Number(interval) || 1), dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), startDate, endDate: endDate || undefined } }); setShowSchedule(false); setSaving(false); onTaskChanged(); };
+  return <Card className="surface-card detail-card"><div className="detail-topline"><span className="eyebrow">Oppgavedetaljer</span><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span></div><Heading level={3}>{obligation.name}</Heading><Paragraph>{obligation.description}</Paragraph><div className="detail-meta"><div><Clock3 size={16} /><span><small>Tidsbruk</small><strong>{obligation.estimatedMinutes} minutter</strong></span></div><div><Landmark size={16} /><span><small>Ansvarlig etat</small><strong>{obligation.responsibleAgency}</strong></span></div><div><FileCheck2 size={16} /><span><small>Lovhjemmel</small><strong>{obligation.legalBasis}</strong></span></div></div><div className="detail-section"><strong>Nødvendige data</strong><div className="tag-row">{obligation.requiredData.map((item) => <Tag key={item}>{item}</Tag>)}</div></div>{obligation.attachments.length > 0 && <div className="detail-section"><strong>Vedlegg</strong><p>{obligation.attachments.join(' · ')}</p></div>}<div className="detail-section"><strong>Status</strong><select value={status === 'not_started' ? obligation.status : status} onChange={(event) => void saveStatus(event.target.value as TaskStatus)} disabled={saving}>{Object.entries(statusLabels).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></div>{!obligation.deadline && <div className="schedule-box"><strong>Aktiver i årshjulet</strong><p>Denne oppgaven har ingen fast frist. Legg inn en lokal, gjentakende arbeidsfrist.</p>{showSchedule ? <div className="schedule-form"><label>Gjentakelse<select value={frequency} onChange={(event) => setFrequency(event.target.value as typeof frequency)}><option value="monthly">Månedlig</option><option value="quarterly">Hvert kvartal</option><option value="yearly">Årlig</option></select></label><Textfield label="Intervall" type="number" value={interval} onChange={(event) => setInterval(event.target.value)} /><Textfield label="Dag i måneden" type="number" value={dayOfMonth} onChange={(event) => setDayOfMonth(event.target.value)} /><Textfield label="Startdato" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /><Textfield label="Sluttdato (valgfritt)" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /><Textfield label="Kommentar" value={comment} onChange={(event) => setComment(event.target.value)} /><div className="dialog-actions"><Button variant="secondary" onClick={() => setShowSchedule(false)}>Avbryt</Button><Button onClick={() => void activateSchedule()} disabled={saving}>Aktiver frister</Button></div></div> : <Button variant="secondary" onClick={() => setShowSchedule(true)}>Velg gjentakende frist</Button>}</div>}<div className="detail-section"><strong>Kilder</strong>{linkedSources.length ? linkedSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" className="source-link" key={source.id}><ShieldCheck size={15} />{source.title}<ChevronRight size={15} /></a>) : <p className="muted">Ingen autoritativ kilde koblet ennå.</p>}</div></Card>;
 }
 
 function SourcePanel({ sources }: { sources: Source[] }) {

@@ -2,6 +2,7 @@ node_modules/
 dist/
 data/raw/
 data-test/
+data/runtime/
 data/warehouse/*.duckdb
 data/warehouse/*.parquet
 .env

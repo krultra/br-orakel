@@ -1,6 +1,6 @@
-# br-orakel – Rapporteringsløsen
+# br-orakel – ORaKeL
 
-MVP for en KI-assistert rapporteringslos for norske virksomheter. GitHub-repoet heter `br-orakel`; Rapporteringsløsen er foreløpig produkt-/arbeidsnavn. Marit avklarer senere hva «ORAKEL» skal stå for. Første leveranse er en selvstendig demo med mockdata, men med adaptergrenser for Oppgaveregisteret, Enhetsregisteret, kilder, KI og brukerinnspill.
+MVP for ORaKeL – en KI-assistert rapporteringslos for norske virksomheter. GitHub-repoet heter `br-orakel`; betydningen av «ORaKeL» avklares senere av teamet. Første leveranse er en selvstendig demo med live BRREG-data, mockutvidelser og adaptergrenser for Oppgaveregisteret, Enhetsregisteret, kilder, KI og brukerinnspill.
 
 ## Valgt teknologi
 
@@ -34,6 +34,16 @@ npm run dev
 Åpne <http://localhost:5173>. Med live-modus kan du søke på virksomhetsnavn
 eller organisasjonsnummer i BRREG. Mockvirksomheten er `999999999`. API-et
 kjører på <http://localhost:3001>.
+
+Ved oppstart kan en demo-bruker registreres selv. Saksbehandlerrollen er
+forhåndsopprettet med brukernavn `br-saksbehandler` og passord `demo` i den
+lokale demo-instansen. Virksomhetsbrukere kan søke opp virksomheter og lagre
+dem i «Mine virksomheter». Brukerdata lagres lokalt i `data/runtime/` og skal
+ikke legges i Git.
+
+Oppgaver uten fast offisiell frist kan aktiveres fra oppgavedetaljene med en
+lokal, gjentakende frist. Den lokale fristen er en brukerinnstilling og endrer
+ikke opplysningene fra Oppgaveregisteret.
 
 ## Samarbeid med flere agenter
 

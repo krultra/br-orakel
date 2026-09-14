@@ -18,6 +18,38 @@ export type TaskStatus =
 
 export type ObligationTrigger = 'periodic' | 'event';
 
+export type UserRole = 'business' | 'caseworker';
+
+export interface DemoUser {
+  id: string;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  organizationNumbers: string[];
+}
+
+export type RecurrenceFrequency = 'monthly' | 'quarterly' | 'yearly';
+
+export interface TaskRecurrence {
+  frequency: RecurrenceFrequency;
+  interval: number;
+  dayOfMonth: number;
+  startDate: string;
+  endDate?: string;
+}
+
+export interface TaskPreference {
+  userId: string;
+  obligationId: string;
+  orgNumber: string;
+  activated: boolean;
+  comment?: string;
+  recurrence?: TaskRecurrence;
+  status?: TaskStatus;
+  hiddenUntil?: string;
+  hiddenForever?: boolean;
+}
+
 export interface Source {
   id: string;
   title: string;

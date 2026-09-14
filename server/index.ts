@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomBytes } from 'node:crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
@@ -7,8 +8,13 @@ import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRe
 import { EnhetsregisteretAdapter, EnhetsregisteretError } from '../src/data/enhetsregisteret-adapter.js';
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
+import type { DemoUser, Obligation, TaskPreference, TaskRecurrence } from '../src/domain/types.js';
+import { DemoStore } from './demo-store.js';
 
 const app = Fastify({ logger: true });
+const demoStore = new DemoStore(process.env.DEMO_STORE_PATH);
+await demoStore.init();
+const sessions = new Map<string, string>();
 const organizationProvider = process.env.ENHETSREGISTERET_MODE ?? 'live';
 const obligationProvider = process.env.OPPGAVEREGISTERET_MODE ?? 'live';
 const organizations = organizationProvider === 'live'
@@ -39,6 +45,54 @@ const chat = aiProvider === 'openai'
   : new MockChatAdapter();
 const runtimeMode = obligationProvider === 'live' ? 'oppgaveregisteret' : process.env.APP_MODE ?? 'mock';
 
+function sessionUser(request: { headers: { cookie?: string } }): DemoUser | null {
+  const token = request.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith('br_orakel_session='))?.split('=')[1];
+  const userId = token ? sessions.get(token) : undefined;
+  return userId ? demoStore.getUser(userId) : null;
+}
+
+function setSession(reply: { header(name: string, value: string): unknown }, user: DemoUser): void {
+  const token = randomBytes(32).toString('hex');
+  sessions.set(token, user.id);
+  reply.header('Set-Cookie', `br_orakel_session=${token}; Path=/; HttpOnly; SameSite=Lax`);
+}
+
+function clearSession(request: { headers: { cookie?: string } }, reply: { header(name: string, value: string): unknown }): void {
+  const token = request.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith('br_orakel_session='))?.split('=')[1];
+  if (token) sessions.delete(token);
+  reply.header('Set-Cookie', 'br_orakel_session=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax');
+}
+
+function dateForYear(year: number, month: number, day: number): string | undefined {
+  const date = new Date(year, month, day);
+  return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day
+    ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    : undefined;
+}
+
+function recurringDates(recurrence: TaskRecurrence): string[] {
+  const start = new Date(`${recurrence.startDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return [];
+  const year = start.getFullYear();
+  const dates: string[] = [];
+  const interval = Math.max(1, Math.floor(recurrence.interval || 1));
+  const step = recurrence.frequency === 'monthly' ? interval : recurrence.frequency === 'quarterly' ? interval * 3 : interval * 12;
+  for (let month = 0; month < 12; month += 1) {
+    if (month % step !== start.getMonth() % step) continue;
+    const date = dateForYear(year, month, Math.min(31, Math.max(1, recurrence.dayOfMonth)));
+    if (date && date >= recurrence.startDate && (!recurrence.endDate || date <= recurrence.endDate)) dates.push(date);
+  }
+  return dates;
+}
+
+function applyPreference(obligation: Obligation, preference?: TaskPreference): Obligation {
+  if (!preference) return obligation;
+  const withUserStatus = preference.status ? { ...obligation, status: preference.status } : obligation;
+  if (!preference.activated || !preference.recurrence) return withUserStatus;
+  const dates = recurringDates(preference.recurrence);
+  return dates.length > 0 ? { ...withUserStatus, deadline: dates[0], reportingWindowStart: dates[0], deadlineDates: dates } : withUserStatus;
+}
+
 const sourcesForOrganization = async (query: string, orgNumber?: string) => {
   const availableSources = await sources.search(query);
   if (!orgNumber) return availableSources;
@@ -55,6 +109,59 @@ const sourcesForOrganization = async (query: string, orgNumber?: string) => {
 await app.register(cors, { origin: true });
 
 app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider, obligationProvider }));
+
+app.get('/api/auth/me', async (request, reply) => {
+  const user = sessionUser(request);
+  return user ?? reply.code(401).send({ message: 'Du er ikke logget inn.' });
+});
+
+app.post('/api/auth/register', async (request, reply) => {
+  const body = request.body as { username?: string; displayName?: string; password?: string };
+  if (!body?.username || !body.password) return reply.code(400).send({ message: 'Brukernavn og passord er obligatorisk.' });
+  try {
+    const user = await demoStore.createUser({ username: body.username, displayName: body.displayName ?? body.username, password: body.password });
+    setSession(reply, user);
+    return reply.code(201).send(user);
+  } catch (error) {
+    return reply.code(400).send({ message: error instanceof Error ? error.message : 'Kunne ikke opprette bruker.' });
+  }
+});
+
+app.post('/api/auth/login', async (request, reply) => {
+  const body = request.body as { username?: string; password?: string };
+  const user = body?.username && body.password ? demoStore.authenticate(body.username, body.password) : null;
+  if (!user) return reply.code(401).send({ message: 'Feil brukernavn eller passord.' });
+  setSession(reply, user);
+  return user;
+});
+
+app.post('/api/auth/logout', async (request, reply) => {
+  clearSession(request, reply);
+  return { ok: true };
+});
+
+app.get('/api/me/organizations', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du velger virksomhet.' });
+  const result = await Promise.all(user.organizationNumbers.map((orgNumber) => organizations.findByOrgNumber(orgNumber)));
+  return result.filter((organization): organization is NonNullable<typeof organization> => Boolean(organization));
+});
+
+app.post('/api/me/organizations', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du legger til virksomhet.' });
+  const orgNumber = String((request.body as { orgNumber?: string })?.orgNumber ?? '').replace(/\s/g, '');
+  const organization = await organizations.findByOrgNumber(orgNumber);
+  if (!organization) return reply.code(404).send({ message: 'Virksomheten finnes ikke i Enhetsregisteret.' });
+  return demoStore.addOrganization(user.id, organization.orgNumber);
+});
+
+app.delete('/api/me/organizations/:orgNumber', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer virksomheter.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  return demoStore.removeOrganization(user.id, orgNumber.replace(/\s/g, ''));
+});
 
 app.get('/api/organizations/search', async (request, reply) => {
   const { q = '' } = request.query as { q?: string };
@@ -84,7 +191,10 @@ app.get('/api/organizations/:orgNumber/obligations', async (request, reply) => {
   try {
     const organization = await organizations.findByOrgNumber(orgNumber);
     if (!organization) return reply.code(404).send({ message: 'Virksomheten finnes ikke i Enhetsregisteret.' });
-    return await obligations.listForOrganization(organization);
+    const officialObligations = await obligations.listForOrganization(organization);
+    const user = sessionUser(request);
+    const preferences = user ? demoStore.preferences(user.id, organization.orgNumber) : [];
+    return officialObligations.map((obligation) => applyPreference(obligation, preferences.find((item) => item.obligationId === obligation.id)));
   } catch (error) {
     if (error instanceof EnhetsregisteretError) {
       return reply.code(502).send({ code: 'ENHETSREGISTERET_UNAVAILABLE', message: 'Enhetsregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
@@ -94,6 +204,32 @@ app.get('/api/organizations/:orgNumber/obligations', async (request, reply) => {
     }
     throw error;
   }
+});
+
+app.get('/api/organizations/:orgNumber/task-preferences', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer oppgaver.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  return demoStore.preferences(user.id, orgNumber.replace(/\s/g, ''));
+});
+
+app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer oppgaver.' });
+  const { orgNumber, obligationId } = request.params as { orgNumber: string; obligationId: string };
+  const body = request.body as Partial<TaskPreference>;
+  const preference: TaskPreference = {
+    userId: user.id,
+    orgNumber: orgNumber.replace(/\s/g, ''),
+    obligationId,
+    activated: body.activated === true,
+    comment: typeof body.comment === 'string' ? body.comment.slice(0, 2000) : undefined,
+    recurrence: body.recurrence,
+    status: body.status,
+    hiddenUntil: body.hiddenUntil,
+    hiddenForever: body.hiddenForever === true,
+  };
+  return demoStore.savePreference(user.id, preference);
 });
 
 app.get('/api/sources', async (request) => {
