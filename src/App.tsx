@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { AlertCircle, CalendarDays, Check, ChevronRight, CircleHelp, Clock3, EyeOff, FileCheck2, Filter, Landmark, Plus, Search, Send, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
@@ -16,6 +17,38 @@ const statusClass: Record<TaskStatus, string> = {
 function formatDate(value?: string) {
   if (!value) return 'Ved hendelse';
   return new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short' }).format(new Date(value));
+}
+
+function FormattedAnswer({ text }: { text: string }) {
+  const lines = text.replace(/\r/g, '').replace(/[ \t]+(?=(?:\d+\.|[-*•])\s)/g, '\n').split('\n').map((line) => line.trim());
+  const blocks: ReactNode[] = [];
+  let paragraph: string[] = [];
+  const flushParagraph = () => {
+    if (paragraph.length > 0) blocks.push(<p key={`paragraph-${blocks.length}`}>{paragraph.join(' ')}</p>);
+    paragraph = [];
+  };
+  for (let index = 0; index < lines.length;) {
+    const line = lines[index];
+    if (!line) { flushParagraph(); index += 1; continue; }
+    if (/^\d+\.\s+/.test(line)) {
+      flushParagraph();
+      const items: string[] = [];
+      while (index < lines.length && /^\d+\.\s+/.test(lines[index])) items.push(lines[index].replace(/^\d+\.\s+/, ''));
+      blocks.push(<ol key={`ordered-${blocks.length}`}>{items.map((item) => <li key={item}>{item}</li>)}</ol>);
+      continue;
+    }
+    if (/^[-*•]\s+/.test(line)) {
+      flushParagraph();
+      const items: string[] = [];
+      while (index < lines.length && /^[-*•]\s+/.test(lines[index])) items.push(lines[index].replace(/^[-*•]\s+/, ''));
+      blocks.push(<ul key={`unordered-${blocks.length}`}>{items.map((item) => <li key={item}>{item}</li>)}</ul>);
+      continue;
+    }
+    paragraph.push(line);
+    index += 1;
+  }
+  flushParagraph();
+  return <div className="formatted-answer">{blocks}</div>;
 }
 
 function TrustLabel({ level }: { level: string }) {
@@ -253,8 +286,14 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const ask = async () => { if (!question.trim()) return; setIsLoading(true); try { setAnswer(await api.chat(question, orgNumber)); } finally { setIsLoading(false); } };
+  const handleQuestionKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      void ask();
+    }
+  };
   const answerSources = sources.filter((source) => answer?.sourceIds.includes(source.id));
-  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{answer ? <><p>{answer.answer}</p><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} /><Button aria-label="Send spørsmål" onClick={() => void ask()} disabled={isLoading}><Send size={16} /></Button></div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
+  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{answer ? <><FormattedAnswer text={answer.answer} /><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label="Send spørsmål" onClick={() => void ask()} disabled={isLoading}><Send size={16} /></Button></div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
 }
 
 function ReportDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
