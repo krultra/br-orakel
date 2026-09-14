@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { AlertCircle, CalendarDays, Check, ChevronRight, CircleHelp, Clock3, EyeOff, FileCheck2, Filter, Landmark, Plus, Search, Send, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
 import type { ChatAnswer, DemoUser, Obligation, Organization, Source, TaskStatus, UserReportedRequirement } from './domain/types';
+import { statusForDate } from './domain/task-status';
 import { parseFormattedAnswer } from './format-answer';
 import { appEnvironment, appVersion } from './version';
 
@@ -25,10 +26,16 @@ function effectiveDeadline(obligation: Obligation) {
 }
 
 function FormattedAnswer({ text }: { text: string }) {
+  const inline = (value: string): ReactNode[] => value.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_)/g).filter(Boolean).map((part, index) => {
+    if ((part.startsWith('**') && part.endsWith('**')) || (part.startsWith('__') && part.endsWith('__'))) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    if ((part.startsWith('*') && part.endsWith('*')) || (part.startsWith('_') && part.endsWith('_'))) return <em key={index}>{part.slice(1, -1)}</em>;
+    return <span key={index}>{part}</span>;
+  });
   return <div className="formatted-answer">{parseFormattedAnswer(text).map((block, index) => {
-    if (block.kind === 'paragraph') return <p key={`paragraph-${index}`}>{block.text}</p>;
-    if (block.kind === 'ordered') return <ol key={`ordered-${index}`}>{block.items.map((item, itemIndex) => <li key={`${index}-${itemIndex}`}>{item}</li>)}</ol>;
-    return <ul key={`unordered-${index}`}>{block.items.map((item, itemIndex) => <li key={`${index}-${itemIndex}`}>{item}</li>)}</ul>;
+    if (block.kind === 'paragraph') return <p key={`paragraph-${index}`}>{inline(block.text)}</p>;
+    if (block.kind === 'heading') { const HeadingTag = (`h${Math.min(6, block.level + 3)}`) as 'h4' | 'h5' | 'h6'; return <HeadingTag key={`heading-${index}`}>{inline(block.text)}</HeadingTag>; }
+    if (block.kind === 'ordered') return <ol key={`ordered-${index}`}>{block.items.map((item, itemIndex) => <li key={`${index}-${itemIndex}`}>{inline(item)}</li>)}</ol>;
+    return <ul key={`unordered-${index}`}>{block.items.map((item, itemIndex) => <li key={`${index}-${itemIndex}`}>{inline(item)}</li>)}</ul>;
   })}</div>;
 }
 
@@ -48,6 +55,7 @@ function App() {
   const [sources, setSources] = useState<Source[]>([]);
   const [reports, setReports] = useState<UserReportedRequirement[]>([]);
   const [selectedObligationId, setSelectedObligationId] = useState<string | null>(null);
+  const [selectedOccurrenceDate, setSelectedOccurrenceDate] = useState<string | null>(null);
   const [view, setView] = useState<'overview' | 'admin'>('overview');
   const [calendarMode, setCalendarMode] = useState<'year' | 'list'>('year');
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
@@ -157,7 +165,7 @@ function App() {
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}<button onClick={() => setToast('')} aria-label="Lukk melding"><X size={16} /></button></div>}
 
       {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status) => { const updated = await api.updateReport(id, status); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
-      {user.role === 'business' && organization && <Overview organization={organization} obligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} setSelectedObligationId={setSelectedObligationId} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} />}
+      {user.role === 'business' && organization && <Overview organization={organization} obligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} />}
       {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Søk etter virksomheten din ovenfor, velg et treff og legg den til i Mine virksomheter.</Paragraph></Card>}
     </main>
   </div>;
@@ -182,7 +190,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: DemoUser) => 
   return <main className="auth-shell"><Card className="auth-card"><form onSubmit={(event) => { event.preventDefault(); void submit(); }}><img src="/orakel-logo.svg" alt="ORaKeL" className="auth-logo" /><p className="eyebrow">Demo-tilgang</p><Heading level={1}>{mode === 'login' ? 'Logg inn i ORaKeL' : 'Opprett demo-bruker'}</Heading><Paragraph>{mode === 'login' ? 'Velg virksomhetsbruker eller saksbehandler for å starte.' : 'Brukeren lagres kun i denne hackathon-instansen.'}</Paragraph>{mode === 'register' && <Textfield label="Navn som vises" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />}{<Textfield label="Brukernavn" value={username} onChange={(event) => setUsername(event.target.value)} />}{<Textfield label="Passord" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />}{error && <Alert data-color="danger"><AlertCircle size={17} />{error}</Alert>}<Button type="submit" disabled={busy || !username || !password}>{busy ? 'Arbeider…' : mode === 'login' ? 'Logg inn' : 'Opprett bruker'}</Button><button type="button" className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{mode === 'login' ? 'Opprett ny virksomhetsbruker' : 'Jeg har allerede bruker'}</button>{mode === 'login' && <p className="demo-credentials">Demo-saksbehandler: <code>br-saksbehandler</code> / <code>demo</code></p>}</form></Card></main>;
 }
 
-function Overview({ organization, obligations, allObligations, sources, selectedObligation, setSelectedObligationId, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged }: { organization: Organization; obligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; setSelectedObligationId: (id: string | null) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void }) {
+function Overview({ organization, obligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged }: { organization: Organization; obligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void }) {
   const [showReport, setShowReport] = useState(false);
   const mainColumnRef = useRef<HTMLDivElement>(null);
   const mainScrollTop = useRef(0);
@@ -192,18 +200,18 @@ function Overview({ organization, obligations, allObligations, sources, selected
     <section className="context-bar"><div className="context-company"><div className="company-icon"><Landmark size={20} /></div><div><strong>{organization.name}</strong><span>Org.nr. {organization.orgNumber} · {organization.organizationForm} · {organization.municipality}</span></div></div><div className="context-facts"><span><strong>{allObligations.length}</strong> oppgaver</span><span><strong>{allObligations.filter((item) => item.status === 'completed').length}</strong> fullført</span><span><strong>{allObligations.reduce((sum, item) => sum + item.estimatedMinutes, 0)} min</strong> estimert</span></div></section>
     <section className="dashboard-grid">
       <div className="main-column" ref={mainColumnRef}>
-        <Card className="surface-card calendar-card"><div className="card-heading-row"><div><p className="eyebrow">Rapporteringsåret 2026</p><Heading level={2}>Årshjul</Heading></div><div className="segmented"><button className={calendarMode === 'year' ? 'selected' : ''} onClick={() => setCalendarMode('year')}>Årshjul</button><button className={calendarMode === 'list' ? 'selected' : ''} onClick={() => setCalendarMode('list')}>Liste</button></div></div>{calendarMode === 'year' ? <YearWheel obligations={obligations} selectedId={selectedObligation?.id} onSelect={setSelectedObligationId} /> : <ObligationList obligations={obligations} selectedId={selectedObligation?.id} onSelect={setSelectedObligationId} />}</Card>
+        <Card className="surface-card calendar-card"><div className="card-heading-row"><div><p className="eyebrow">Rapporteringsåret 2026</p><Heading level={2}>Årshjul</Heading></div><div className="segmented"><button className={calendarMode === 'year' ? 'selected' : ''} onClick={() => setCalendarMode('year')}>Årshjul</button><button className={calendarMode === 'list' ? 'selected' : ''} onClick={() => setCalendarMode('list')}>Liste</button></div></div>{calendarMode === 'year' ? <YearWheel obligations={obligations} selectedId={selectedObligation?.id} selectedOccurrenceDate={selectedOccurrenceDate ?? undefined} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} /> : <ObligationList obligations={obligations} selectedId={selectedObligation?.id} onSelect={(id) => { setSelectedObligationId(id); setSelectedOccurrenceDate(null); }} />}</Card>
         <div className="workspace-heading"><div><p className="eyebrow">Arbeidsliste</p><Heading level={2}>Det som må gjøres</Heading></div><div className="filter-row"><Filter size={16} /><select value={statusFilter} onChange={(event) => preserveMainScroll(() => setStatusFilter(event.target.value as typeof statusFilter))} aria-label="Filtrer oppgaver"><option value="all">Alle statuser</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select value={visibilityFilter} onChange={(event) => preserveMainScroll(() => setVisibilityFilter(event.target.value as typeof visibilityFilter))} aria-label="Filtrer synlighet"><option value="visible">Synlige</option><option value="hidden">Skjulte</option><option value="all">Alle oppgaver</option></select></div></div>
-        <div className="task-list">{obligations.map((item) => <TaskRow key={item.id} obligation={item} selected={selectedObligation?.id === item.id} onClick={() => setSelectedObligationId(item.id)} />)}</div>
+        <div className="task-list">{obligations.map((item) => <TaskRow key={item.id} obligation={item} selected={selectedObligation?.id === item.id} onClick={() => { setSelectedObligationId(item.id); setSelectedOccurrenceDate(null); }} />)}</div>
         <button className="report-cta" onClick={() => setShowReport(true)}><div className="report-cta-icon"><Plus size={20} /></div><div><strong>Finner du en plikt som mangler?</strong><span>Meld inn et mulig krav til menneskelig gjennomgang.</span></div><ChevronRight size={20} /></button>
       </div>
-      <aside className="side-column"><ChatPanel orgNumber={organization.orgNumber} sources={sources} /><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} sources={sources} onTaskChanged={onTaskChanged} /><SourcePanel sources={sources} /></aside>
+      <aside className="side-column"><ChatPanel orgNumber={organization.orgNumber} sources={sources} /><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} occurrenceDate={selectedOccurrenceDate} sources={sources} onTaskChanged={onTaskChanged} /><SourcePanel sources={sources} /></aside>
     </section>
     {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => setShowReport(false)} />}
   </>;
 }
 
-function YearWheel({ obligations, selectedId, onSelect }: { obligations: Obligation[]; selectedId?: string; onSelect: (id: string) => void }) {
+function YearWheel({ obligations, selectedId, selectedOccurrenceDate, onSelect }: { obligations: Obligation[]; selectedId?: string; selectedOccurrenceDate?: string; onSelect: (id: string, date?: string) => void }) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Des'];
   const grouped = useMemo(() => {
     const buckets = months.map((month) => ({ month, items: [] as Array<{ item: Obligation; date?: string }> }));
@@ -225,7 +233,7 @@ function YearWheel({ obligations, selectedId, onSelect }: { obligations: Obligat
     }
     return [...buckets, { month: 'Uten fast frist', items: noDateItems }];
   }, [obligations]);
-  return <div className="year-wheel">{grouped.map(({ month, items }) => <div className={`month-cell ${items.length ? 'has-items' : ''}`} key={month}><span className="month-label">{month}</span>{items.map(({ item, date }) => <button key={`${item.id}-${date ?? 'no-date'}`} className={`calendar-item ${statusClass[item.status]} ${selectedId === item.id ? 'is-selected' : ''}`} onClick={() => onSelect(item.id)}><span className="calendar-dot" />{item.name}<small>{formatDate(date ?? item.deadline)}</small></button>)}</div>)}</div>;
+  return <div className="year-wheel">{grouped.map(({ month, items }) => <div className={`month-cell ${items.length ? 'has-items' : ''}`} key={month}><span className="month-label">{month}</span>{items.map(({ item, date }) => { const itemStatus = statusForDate(item.status, date, item.statusByDate); return <button key={`${item.id}-${date ?? 'no-date'}`} className={`calendar-item ${statusClass[itemStatus]} ${selectedId === item.id && selectedOccurrenceDate === date ? 'is-selected' : ''}`} onClick={() => onSelect(item.id, date)}><span className="calendar-dot" />{item.name}<small>{formatDate(date ?? effectiveDeadline(item))} · {statusLabels[itemStatus]}</small></button>; })}</div>)}</div>;
 }
 
 function ObligationList({ obligations, selectedId, onSelect }: { obligations: Obligation[]; selectedId?: string; onSelect: (id: string) => void }) {
@@ -236,7 +244,7 @@ function TaskRow({ obligation, selected, onClick }: { obligation: Obligation; se
   return <button className={`task-row ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[obligation.status]}`}>{obligation.trigger === 'event' ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} />{obligation.localComment && <span className="local-note">Kommentar</span>}{obligation.isHidden && <span className="hidden-label"><EyeOff size={12} /> Skjult</span>}</div><span>{obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>{obligation.localDeadline ? 'Lokal frist' : 'Frist'}</small><strong>{formatDate(effectiveDeadline(obligation))}</strong></div><div className="task-status"><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span><ChevronRight size={18} /></div></button>;
 }
 
-function ObligationDetail({ orgNumber, obligation, sources, onTaskChanged }: { orgNumber: string; obligation: Obligation | null; sources: Source[]; onTaskChanged: (nextSelectedId?: string | null) => void }) {
+function ObligationDetail({ orgNumber, obligation, occurrenceDate, sources, onTaskChanged }: { orgNumber: string; obligation: Obligation | null; occurrenceDate: string | null; sources: Source[]; onTaskChanged: (nextSelectedId?: string | null) => void }) {
   const [status, setStatus] = useState<TaskStatus>('not_started');
   const [showSchedule, setShowSchedule] = useState(false);
   const [frequency, setFrequency] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
@@ -248,15 +256,16 @@ function ObligationDetail({ orgNumber, obligation, sources, onTaskChanged }: { o
   const [localDeadline, setLocalDeadline] = useState('');
   const [hiddenUntil, setHiddenUntil] = useState('');
   const [saving, setSaving] = useState(false);
+  const instanceDate = occurrenceDate ?? obligation?.localDeadline ?? obligation?.deadline ?? obligation?.deadlineDates?.[0];
   useEffect(() => {
-    setStatus(obligation?.status ?? 'not_started');
+    setStatus(statusForDate(obligation?.status ?? 'not_started', instanceDate, obligation?.statusByDate));
     setHiddenUntil('');
     setLocalDeadline(obligation?.localDeadline ?? '');
     setComment(obligation?.localComment ?? '');
-  }, [obligation?.id, obligation?.status]);
+  }, [obligation?.id, obligation?.status, obligation?.statusByDate, instanceDate]);
   if (!obligation) return <Card className="surface-card detail-card"><Heading level={3}>Velg en oppgave</Heading><Paragraph>Klikk på en oppgave i årshjulet eller arbeidslisten for å se detaljer.</Paragraph></Card>;
   const linkedSources = sources.filter((source) => obligation.sourceLinks.includes(source.id));
-  const saveStatus = async (nextStatus: TaskStatus) => { setSaving(true); try { await api.saveTaskPreference(orgNumber, obligation.id, { status: nextStatus, activated: Boolean(obligation.deadline || obligation.deadlineDates?.length) }); setStatus(nextStatus); onTaskChanged(); } finally { setSaving(false); } };
+  const saveStatus = async (nextStatus: TaskStatus) => { setSaving(true); try { const statusByDate = instanceDate && obligation.deadlineDates?.length ? { ...(obligation.statusByDate ?? {}), [instanceDate]: nextStatus } : undefined; await api.saveTaskPreference(orgNumber, obligation.id, { ...(statusByDate ? { statusByDate } : { status: nextStatus }), activated: Boolean(obligation.deadline || obligation.deadlineDates?.length) }); setStatus(nextStatus); onTaskChanged(); } finally { setSaving(false); } };
   const saveLocalDetails = async () => { setSaving(true); try { await api.saveTaskPreference(orgNumber, obligation.id, { activated: Boolean(obligation.deadline || obligation.deadlineDates?.length || localDeadline), deadlineOverride: localDeadline || null, comment }); onTaskChanged(); } finally { setSaving(false); } };
   const activateSchedule = async () => { setSaving(true); await api.saveTaskPreference(orgNumber, obligation.id, { activated: true, comment, recurrence: { frequency, interval: Math.max(1, Number(interval) || 1), dayOfMonth: Math.min(31, Math.max(1, Number(dayOfMonth) || 1)), startDate, endDate: endDate || undefined } }); setShowSchedule(false); setSaving(false); onTaskChanged(); };
   const setHidden = async (until?: string) => { setSaving(true); try { await api.saveTaskPreference(orgNumber, obligation.id, { activated: true, hiddenUntil: until, hiddenForever: !until }); onTaskChanged(null); } finally { setSaving(false); } };

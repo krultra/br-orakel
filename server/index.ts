@@ -10,6 +10,7 @@ import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/dat
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 import type { DemoUser, Obligation, TaskPreference, TaskRecurrence } from '../src/domain/types.js';
+import { aggregateRecurringStatus } from '../src/domain/task-status.js';
 import { DemoStore } from './demo-store.js';
 
 const app = Fastify({ logger: true });
@@ -101,9 +102,16 @@ function applyPreference(obligation: Obligation, preference?: TaskPreference): O
   const status = normalizeTaskStatus(preference.status);
   const today = new Date().toISOString().slice(0, 10);
   const isHidden = preference.hiddenForever === true || Boolean(preference.hiddenUntil && preference.hiddenUntil >= today);
+  // Before per-instance statuses existed, a completed series was stored as one
+  // global status. Treat that legacy value as the official/base status until a
+  // date-specific status is written, so one old click cannot hide future work.
+  const baseStatus = obligation.deadlineDates && obligation.deadlineDates.length > 1 && !preference.statusByDate && status === 'completed'
+    ? obligation.status
+    : status ?? obligation.status;
   const withUserPreference = {
     ...obligation,
-    ...(status ? { status } : {}),
+    status: aggregateRecurringStatus(baseStatus, obligation.deadlineDates, preference.statusByDate),
+    ...(preference.statusByDate ? { statusByDate: preference.statusByDate } : {}),
     isHidden,
     ...(preference.deadlineOverride ? { localDeadline: preference.deadlineOverride } : {}),
     ...(preference.comment ? { localComment: preference.comment } : {}),
@@ -247,6 +255,12 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
   const status = body.status === undefined ? existing?.status : normalizeTaskStatus(body.status);
   if (body.status !== undefined && !status) return reply.code(400).send({ message: 'Ugyldig oppgavestatus.' });
   const hasDeadlineOverride = Object.prototype.hasOwnProperty.call(body, 'deadlineOverride');
+  const statusByDate = body.statusByDate === undefined ? existing?.statusByDate : Object.fromEntries(
+    Object.entries(body.statusByDate).flatMap(([date, value]) => {
+      const normalized = normalizeTaskStatus(value);
+      return normalized ? [[date, normalized]] : [];
+    }),
+  );
   const preference: TaskPreference = {
     userId: user.id,
     orgNumber: orgNumber.replace(/\s/g, ''),
@@ -255,6 +269,7 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
     comment: body.comment === undefined ? existing?.comment : typeof body.comment === 'string' ? body.comment.slice(0, 2000) : undefined,
     recurrence: body.recurrence ?? existing?.recurrence,
     status,
+    statusByDate,
     deadlineOverride: hasDeadlineOverride ? (typeof body.deadlineOverride === 'string' && body.deadlineOverride ? body.deadlineOverride : undefined) : existing?.deadlineOverride,
     hiddenUntil: body.hiddenForever !== undefined ? body.hiddenUntil : body.hiddenUntil ?? existing?.hiddenUntil,
     hiddenForever: body.hiddenForever ?? existing?.hiddenForever ?? false,

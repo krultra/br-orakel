@@ -1,5 +1,6 @@
 export type AnswerBlock =
   | { kind: 'paragraph'; text: string }
+  | { kind: 'heading'; level: 1 | 2 | 3; text: string }
   | { kind: 'ordered'; items: string[] }
   | { kind: 'unordered'; items: string[] };
 
@@ -16,6 +17,13 @@ export function parseFormattedAnswer(text: string): AnswerBlock[] {
     const line = lines[index];
     if (!line) {
       flushParagraph();
+      index += 1;
+      continue;
+    }
+    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (heading) {
+      flushParagraph();
+      blocks.push({ kind: 'heading', level: heading[1].length as 1 | 2 | 3, text: heading[2] });
       index += 1;
       continue;
     }

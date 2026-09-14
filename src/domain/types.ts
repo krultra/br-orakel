@@ -42,6 +42,8 @@ export interface TaskPreference {
   comment?: string;
   recurrence?: TaskRecurrence;
   status?: TaskStatus;
+  /** User-local status per recurring deadline instance. */
+  statusByDate?: Record<string, TaskStatus>;
   /** A user-local deadline; official register data must remain unchanged. */
   deadlineOverride?: string | null;
   hiddenUntil?: string;
@@ -96,6 +98,8 @@ export interface Obligation {
   sourceLinks: string[];
   reportingForms?: string[];
   status: TaskStatus;
+  /** User-local status per recurring deadline instance. */
+  statusByDate?: Record<string, TaskStatus>;
   /** User-local visibility preference; official obligation data remains unchanged. */
   isHidden?: boolean;
   /** User-local adjustments, kept separate from official obligation fields. */
