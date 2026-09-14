@@ -24,12 +24,14 @@ await fs.mkdir(path.dirname(output), { recursive: true });
 
 const escapeSqlString = (value: string) => value.replaceAll("'", "''");
 const inputExt = path.extname(input).toLowerCase();
-const format = options.format ?? (inputExt === '.csv' ? 'csv' : inputExt === '.jsonl' ? 'jsonl' : 'json');
+const format = options.format ?? (inputExt === '.csv' ? 'csv' : inputExt === '.jsonl' ? 'jsonl' : inputExt === '.parquet' ? 'parquet' : 'json');
 const reader = format === 'csv'
   ? `read_csv_auto('${escapeSqlString(input)}', header=true, union_by_name=true, sample_size=-1)`
   : format === 'jsonl'
     ? `read_json_auto('${escapeSqlString(input)}', format='newline_delimited', union_by_name=true)`
-    : `read_json_auto('${escapeSqlString(input)}', union_by_name=true)`;
+    : format === 'parquet'
+      ? `read_parquet('${escapeSqlString(input)}')`
+      : `read_json_auto('${escapeSqlString(input)}', union_by_name=true)`;
 
 type DuckDbConnection = { run(sql: string, callback: (error: Error | null) => void): void; all(sql: string, callback: (error: Error | null, rows: Array<Record<string, unknown>>) => void): void; close(): void };
 const database = new duckdb.Database(output);

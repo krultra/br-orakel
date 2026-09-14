@@ -22,6 +22,12 @@ aktiveres eksplisitt for demo og CI. Se
 [dokumentasjonen for Oppgaveregisteret](docs/OPPGAVEREGISTERET.md) og
 [Enhetsregisteret-integrasjonen](docs/ENHETSREGISTERET.md).
 
+Hackathonets lokale Parquet-uttrekk kan brukes som alternativ virksomhetskilde
+med `ENHETSREGISTERET_MODE=dataset` og
+`ENHETSREGISTERET_DATASET_PATH=./data/raw/dim_virksomhet.parquet`. Denne
+modusen er nyttig for reproduserbar demo og navnesøk, men datasettet mangler
+arbeidsgiverindikator. Se [datasetanalysen](docs/DATASET.md).
+
 ## Kom i gang
 
 Krever Node.js 22+.

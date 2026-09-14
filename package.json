@@ -11,6 +11,7 @@
     "start": "node --import tsx server/index.ts",
     "typecheck": "tsc -b --pretty false",
     "import": "node --import tsx scripts/import-dataset.ts",
+    "analyze-dataset": "node --import tsx scripts/analyze-hackathon-dataset.ts",
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {

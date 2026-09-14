@@ -152,7 +152,11 @@ export class OppgaveregisteretAdapter implements ObligationAdapter {
           url.searchParams.set('antall', String(this.pageSize));
           url.searchParams.set('organisasjonsformer', organization.organizationForm);
           if (industryCode) url.searchParams.set('naeringskoder', industryCode);
-          url.searchParams.set('ekskluderArbeidsgiver', String(!organization.hasEmployees));
+          // A dataset-backed organization may not contain employee information.
+          // In that case do not silently exclude employer obligations.
+          if (organization.hasEmployees !== undefined) {
+            url.searchParams.set('ekskluderArbeidsgiver', String(!organization.hasEmployees));
+          }
 
           const pageItems = await this.fetchPage(url);
           successfulIndustryQueries += 1;

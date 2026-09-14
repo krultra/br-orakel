@@ -133,6 +133,20 @@ test('adapteren faller tilbake til organisasjonsform når BRREG har placeholder-
   assert.equal(new URL(requestedUrls[0]).searchParams.has('naeringskoder'), false);
 });
 
+test('adapteren lar arbeidsgiverfilteret stå åpent når datakilden mangler ansattinformasjon', async () => {
+  let requestedUrl = '';
+  const adapter = new OppgaveregisteretAdapter({
+    fetcher: async (input) => {
+      requestedUrl = input;
+      return jsonResponse({ start: 0, antall: 1, maxAntall: 160, skjema: [rawForm()] });
+    },
+  });
+
+  await adapter.listForOrganization({ ...organization, hasEmployees: undefined });
+
+  assert.equal(new URL(requestedUrl).searchParams.has('ekskluderArbeidsgiver'), false);
+});
+
 test('adapteren mapper Oppgaveregisterets tidsfrister til årshjulet', async () => {
   const adapter = new OppgaveregisteretAdapter({
     fetcher: async () => jsonResponse({

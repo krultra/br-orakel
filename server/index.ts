@@ -6,6 +6,7 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
 import { EnhetsregisteretAdapter, EnhetsregisteretError } from '../src/data/enhetsregisteret-adapter.js';
+import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/data/dataset-organization-adapter.js';
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 import type { DemoUser, Obligation, TaskPreference, TaskRecurrence } from '../src/domain/types.js';
@@ -17,12 +18,14 @@ await demoStore.init();
 const sessions = new Map<string, string>();
 const organizationProvider = process.env.ENHETSREGISTERET_MODE ?? 'live';
 const obligationProvider = process.env.OPPGAVEREGISTERET_MODE ?? 'live';
-const organizations = organizationProvider === 'live'
-  ? new EnhetsregisteretAdapter({
+const organizations = organizationProvider === 'dataset'
+  ? new DatasetOrganizationAdapter({ filePath: process.env.ENHETSREGISTERET_DATASET_PATH })
+  : organizationProvider === 'live'
+    ? new EnhetsregisteretAdapter({
       baseUrl: process.env.ENHETSREGISTERET_API,
       timeoutMs: Number(process.env.ENHETSREGISTERET_TIMEOUT_MS ?? 10000),
     })
-  : new MockOrganizationAdapter();
+    : new MockOrganizationAdapter();
 const obligations = obligationProvider === 'live'
   ? new OppgaveregisteretAdapter({
       baseUrl: process.env.OPPGAVEREGISTERET_API,
@@ -169,6 +172,7 @@ app.get('/api/organizations/search', async (request, reply) => {
   try {
     return await organizations.searchByName(q);
   } catch (error) {
+    if (error instanceof DatasetOrganizationError) return reply.code(502).send({ code: 'DATASET_UNAVAILABLE', message: 'Det lokale hackathon-datasettet er ikke tilgjengelig akkurat nå.' });
     if (error instanceof EnhetsregisteretError) return reply.code(502).send({ code: 'ENHETSREGISTERET_UNAVAILABLE', message: 'Enhetsregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
     throw error;
   }
@@ -181,6 +185,7 @@ app.get('/api/organizations/:orgNumber', async (request, reply) => {
     if (!organization) return reply.code(404).send({ message: 'Virksomheten finnes ikke i Enhetsregisteret.' });
     return organization;
   } catch (error) {
+    if (error instanceof DatasetOrganizationError) return reply.code(502).send({ code: 'DATASET_UNAVAILABLE', message: 'Det lokale hackathon-datasettet er ikke tilgjengelig akkurat nå.' });
     if (error instanceof EnhetsregisteretError) return reply.code(502).send({ code: 'ENHETSREGISTERET_UNAVAILABLE', message: 'Enhetsregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
     throw error;
   }
@@ -196,6 +201,9 @@ app.get('/api/organizations/:orgNumber/obligations', async (request, reply) => {
     const preferences = user ? demoStore.preferences(user.id, organization.orgNumber) : [];
     return officialObligations.map((obligation) => applyPreference(obligation, preferences.find((item) => item.obligationId === obligation.id)));
   } catch (error) {
+    if (error instanceof DatasetOrganizationError) {
+      return reply.code(502).send({ code: 'DATASET_UNAVAILABLE', message: 'Det lokale hackathon-datasettet er ikke tilgjengelig akkurat nå.' });
+    }
     if (error instanceof EnhetsregisteretError) {
       return reply.code(502).send({ code: 'ENHETSREGISTERET_UNAVAILABLE', message: 'Enhetsregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
     }
@@ -285,6 +293,9 @@ app.post('/api/chat', async (request, reply) => {
       reportedRequirements,
     });
   } catch (error) {
+    if (error instanceof DatasetOrganizationError) {
+      return reply.code(502).send({ code: 'DATASET_UNAVAILABLE', message: 'Det lokale hackathon-datasettet er ikke tilgjengelig akkurat nå.' });
+    }
     if (error instanceof EnhetsregisteretError) {
       return reply.code(502).send({ code: 'ENHETSREGISTERET_UNAVAILABLE', message: 'Enhetsregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
     }

@@ -66,7 +66,8 @@ export interface Organization {
   organizationForm: string;
   organizationFormName?: string;
   industryCodes: string[];
-  hasEmployees: boolean;
+  /** Undefined means the selected source does not publish an employee indicator. */
+  hasEmployees?: boolean;
   employeeCount?: number;
   registeredInMvaRegister?: boolean;
   registeredInForetaksregister?: boolean;
@@ -131,5 +132,5 @@ export interface DatasetImportOptions {
   input: string;
   output: string;
   orgNumber?: string;
-  format?: 'json' | 'csv' | 'jsonl';
+  format?: 'json' | 'csv' | 'jsonl' | 'parquet';
 }

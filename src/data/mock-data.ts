@@ -38,6 +38,14 @@ export const mockSources: Source[] = [
     relevantExcerpt: 'Virksomheten er registrert som aksjeselskap med næringskodene 47.110 og 56.101.',
   }),
   source({
+    id: 'source-brreg-hackathon-dataset',
+    title: 'Brønnøysundregistrene: Hackathon 2026-virksomhetsdatasett',
+    url: 'https://storage.googleapis.com/brreg-hackathon-2026-data/datasett_parquet/dim_virksomhet.parquet',
+    sourceType: 'dataset',
+    officiality: 'OFFICIAL_GUIDANCE',
+    relevantExcerpt: 'Hackathon-uttrekk fra Enhetsregisteret og Foretaksregisteret med organisasjonsnummer, navn, organisasjonsform, næringskoder og registerstatus. Uttrekket kan avvike fra løpende registerdata.',
+  }),
+  source({
     id: 'source-a-melding',
     title: 'Altinn: A-meldingen',
     url: 'https://www.skatteetaten.no/bedrift-og-organisasjon/arbeidsgiver/a-meldingen/',
