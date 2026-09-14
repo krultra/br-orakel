@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { AlertCircle, CalendarDays, Check, ChevronRight, CircleHelp, Clock3, EyeOff, FileCheck2, Filter, Landmark, Plus, Search, Send, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
 import type { ChatAnswer, DemoUser, Obligation, Organization, Source, TaskStatus, UserReportedRequirement } from './domain/types';
+import { parseFormattedAnswer } from './format-answer';
 import { appEnvironment, appVersion } from './version';
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -24,35 +25,11 @@ function effectiveDeadline(obligation: Obligation) {
 }
 
 function FormattedAnswer({ text }: { text: string }) {
-  const lines = text.replace(/\r/g, '').replace(/[ \t]+(?=(?:\d+\.|[-*•])\s)/g, '\n').split('\n').map((line) => line.trim());
-  const blocks: ReactNode[] = [];
-  let paragraph: string[] = [];
-  const flushParagraph = () => {
-    if (paragraph.length > 0) blocks.push(<p key={`paragraph-${blocks.length}`}>{paragraph.join(' ')}</p>);
-    paragraph = [];
-  };
-  for (let index = 0; index < lines.length;) {
-    const line = lines[index];
-    if (!line) { flushParagraph(); index += 1; continue; }
-    if (/^\d+\.\s+/.test(line)) {
-      flushParagraph();
-      const items: string[] = [];
-      while (index < lines.length && /^\d+\.\s+/.test(lines[index])) items.push(lines[index].replace(/^\d+\.\s+/, ''));
-      blocks.push(<ol key={`ordered-${blocks.length}`}>{items.map((item) => <li key={item}>{item}</li>)}</ol>);
-      continue;
-    }
-    if (/^[-*•]\s+/.test(line)) {
-      flushParagraph();
-      const items: string[] = [];
-      while (index < lines.length && /^[-*•]\s+/.test(lines[index])) items.push(lines[index].replace(/^[-*•]\s+/, ''));
-      blocks.push(<ul key={`unordered-${blocks.length}`}>{items.map((item) => <li key={item}>{item}</li>)}</ul>);
-      continue;
-    }
-    paragraph.push(line);
-    index += 1;
-  }
-  flushParagraph();
-  return <div className="formatted-answer">{blocks}</div>;
+  return <div className="formatted-answer">{parseFormattedAnswer(text).map((block, index) => {
+    if (block.kind === 'paragraph') return <p key={`paragraph-${index}`}>{block.text}</p>;
+    if (block.kind === 'ordered') return <ol key={`ordered-${index}`}>{block.items.map((item, itemIndex) => <li key={`${index}-${itemIndex}`}>{item}</li>)}</ol>;
+    return <ul key={`unordered-${index}`}>{block.items.map((item, itemIndex) => <li key={`${index}-${itemIndex}`}>{item}</li>)}</ul>;
+  })}</div>;
 }
 
 function TrustLabel({ level }: { level: string }) {
@@ -232,7 +209,11 @@ function YearWheel({ obligations, selectedId, onSelect }: { obligations: Obligat
     const buckets = months.map((month) => ({ month, items: [] as Array<{ item: Obligation; date?: string }> }));
     const noDateItems: Array<{ item: Obligation; date?: string }> = [];
     for (const item of obligations) {
-      const dates = item.deadlineDates?.length ? item.deadlineDates : [item.localDeadline ?? item.reportingWindowStart ?? item.deadline].filter((date): date is string => Boolean(date));
+      const dates = item.localDeadline
+        ? [item.localDeadline]
+        : item.deadlineDates?.length
+          ? item.deadlineDates
+          : [item.reportingWindowStart ?? item.deadline].filter((date): date is string => Boolean(date));
       if (dates.length === 0) {
         noDateItems.push({ item });
         continue;
@@ -291,16 +272,49 @@ function SourcePanel({ sources }: { sources: Source[] }) {
 
 function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[] }) {
   const [question, setQuestion] = useState('Hvilke oppgaver gjelder for oss nå?');
+  const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [chatError, setChatError] = useState('');
   const [isSlow, setIsSlow] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestSequenceRef = useRef(0);
   useEffect(() => {
     if (!isLoading) { setIsSlow(false); return undefined; }
     const timer = window.setTimeout(() => setIsSlow(true), 8000);
     return () => window.clearTimeout(timer);
   }, [isLoading]);
-  const ask = async () => { if (!question.trim() || isLoading) return; setChatError(''); setIsLoading(true); try { setAnswer(await api.chat(question, orgNumber)); } catch (error) { setChatError(error instanceof Error ? error.message : 'Losen kunne ikke svare akkurat nå.'); } finally { setIsLoading(false); } };
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
+  const ask = async () => {
+    const nextQuestion = question.trim();
+    if (!nextQuestion || isLoading) return;
+    const requestId = requestSequenceRef.current + 1;
+    requestSequenceRef.current = requestId;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setSubmittedQuestion(nextQuestion);
+    setChatError('');
+    setIsLoading(true);
+    try {
+      const nextAnswer = await api.chat(nextQuestion, orgNumber, controller.signal);
+      if (requestSequenceRef.current === requestId) setAnswer(nextAnswer);
+    } catch (error) {
+      if (requestSequenceRef.current !== requestId || (error instanceof DOMException && error.name === 'AbortError')) return;
+      setChatError(error instanceof Error ? error.message : 'Losen kunne ikke svare akkurat nå.');
+    } finally {
+      if (requestSequenceRef.current === requestId) {
+        abortControllerRef.current = null;
+        setIsLoading(false);
+      }
+    }
+  };
+  const cancel = () => {
+    requestSequenceRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setIsLoading(false);
+    setIsSlow(false);
+  };
   const handleQuestionKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault();
@@ -308,7 +322,7 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
     }
   };
   const answerSources = sources.filter((source) => answer?.sourceIds.includes(source.id));
-  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <><FormattedAnswer text={answer.answer} /><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}{isLoading && <div className="chat-loading"><Sparkles size={15} /> Losen arbeider…{isSlow && <span>Dette kan ta opptil et halvt minutt når mange oppgaver skal vurderes.</span>}</div>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label="Send spørsmål" onClick={() => void ask()} disabled={isLoading}>{isLoading ? 'Venter…' : <Send size={16} />}</Button></div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
+  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <><FormattedAnswer text={answer.answer} /><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}{isLoading && <div className="chat-loading"><Sparkles size={15} /> Losen arbeider i bakgrunnen…{isSlow && <span>Dette kan ta opptil et halvt minutt når mange oppgaver skal vurderes.</span>}</div>}{submittedQuestion && <p className="submitted-question"><span>Sist sendt:</span> {submittedQuestion}</p>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label={isLoading ? 'Avbryt spørsmål' : 'Send spørsmål'} onClick={() => void (isLoading ? cancel() : ask())}>{isLoading ? 'Avbryt' : <Send size={16} />}</Button></div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
 }
 
 function ReportDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {

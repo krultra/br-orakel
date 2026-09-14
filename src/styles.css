@@ -36,4 +36,9 @@ button { cursor: pointer; }
 .local-details > p { margin: 5px 0 10px; }
 .local-details > button { margin-top: 10px; }
 .local-comment { display: grid; gap: 5px; color: #334155; font-size: 12px; margin-top: 10px; }
+.chat-card, .chat-input { min-width: 0; }
+.chat-input > :first-child { flex: 1 1 auto; min-width: 0; width: 0; }
+.chat-input > button { flex: 0 0 auto; }
+.submitted-question { color: #64748b; font-size: 11px; margin: 10px 0 0; overflow-wrap: anywhere; }
+.submitted-question span { font-weight: 700; color: #475569; }
 @media (max-width: 1100px) { .main-column, .side-column { max-height: none; overflow: visible; padding-right: 0; } }
