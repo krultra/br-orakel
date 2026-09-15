@@ -41,6 +41,15 @@ function formatDateTime(value: string) {
   return new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 }
 
+function safeExternalUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function formatDateInput(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
@@ -342,7 +351,7 @@ function App() {
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}<button onClick={() => setToast('')} aria-label="Lukk melding"><X size={16} /></button></div>}
       {contributionNotice && <div className="global-contribution-notice"><ContributionNotice notice={contributionNotice} onClose={() => setContributionNotice(null)} /></div>}
 
-      {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status) => { const updated = await api.updateReport(id, status); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
+      {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status, note) => { const updated = await api.updateReport(id, status, note); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
       {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} onContributionChanged={(points, action) => refreshContributionSummary(points, action)} />}
       {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Velg «Velg virksomhet» i topplinjen for å søke etter virksomheten din eller velge en lagret virksomhet.</Paragraph></Card>}
       {showOrganizationChooser && user.role === 'business' && <OrganizationChooserDialog savedOrganizations={savedOrganizations} organization={organization} orgNumber={orgNumber} organizationSearchResults={organizationSearchResults} loading={loading} searching={searchingOrganizations} onClose={() => setShowOrganizationChooser(false)} onSearchTermChange={(value) => { setOrgNumber(value); setOrganizationSearchResults([]); }} onSearch={() => void searchOrganizations()} onSelectSaved={async (number) => { setOrgNumber(number); await loadOrganization(number); setShowOrganizationChooser(false); }} onSelectResult={async (number) => { setOrgNumber(number); await loadOrganization(number); }} onAdd={async () => { await addCurrentOrganization(); setShowOrganizationChooser(false); }} />}
@@ -844,10 +853,57 @@ function ReportDialog({ onClose, onCreated }: { onClose: () => void; onCreated: 
   return <div className="dialog-backdrop" role="presentation"><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="report-title"><div className="dialog-heading"><div><p className="eyebrow">Uoffisielt innspill</p><Heading level={2} id="report-title">Meld inn mulig manglende plikt</Heading></div><button onClick={onClose} aria-label="Lukk"><X /></button></div><Alert data-color="warning"><AlertCircle size={18} /> Innspillet blir ikke en offisiell oppgave. Det sendes til menneskelig gjennomgang.</Alert><div className="form-grid"><Textfield label="Hva gjelder innspillet?" value={title} onChange={(event) => setTitle(event.target.value)} /><Textfield label="Foreslått etat (valgfritt)" value={agency} onChange={(event) => setAgency(event.target.value)} /><Textfield multiline className="wide-field" label="Beskriv hva dere må rapportere og hvorfor" rows={5} value={description} onChange={(event) => setDescription(event.target.value)} /></div><div className="dialog-actions"><Button variant="secondary" onClick={onClose}>Avbryt</Button><Button onClick={() => void submit()} disabled={!title || !description || isSaving}>{isSaving ? 'Sender…' : 'Send til gjennomgang'}</Button></div></div></div>;
 }
 
-function AdminView({ reports, onStatusChange }: { reports: UserReportedRequirement[]; onStatusChange: (id: string, status: UserReportedRequirement['reviewStatus']) => Promise<void> }) {
-  const [filter, setFilter] = useState('all');
-  const filtered = filter === 'all' ? reports : reports.filter((report) => report.reviewStatus === filter);
-  return <section className="admin-page"><div className="admin-heading"><div><p className="eyebrow">Intern arbeidsflate</p><Heading level={1}>Saksbehandler</Heading><Paragraph>Vurder innspill før de eventuelt sendes til Brønnøysundregistrene eller foreslått etat.</Paragraph></div><div className="admin-summary"><div><strong>{reports.length}</strong><span>nye innspill</span></div><div><strong>{reports.filter((item) => item.reviewStatus === 'needs_more_info').length}</strong><span>trenger mer info</span></div></div></div><div className="admin-toolbar"><div className="filter-row"><Filter size={16} /><select value={filter} onChange={(event) => setFilter(event.target.value)} aria-label="Filtrer innspill"><option value="all">Alle statuser</option><option value="new">Nye</option><option value="needs_more_info">Trenger mer info</option><option value="forwarded">Sendt videre</option><option value="confirmed">Bekreftet</option></select></div><span className="audit-note"><ShieldCheck size={16} /> Alle endringer logges</span></div><div className="reports-grid">{filtered.map((report) => <Card className="surface-card report-card" key={report.id}><div className="report-card-top"><TrustLabel level="USER_REPORTED" /><span className="report-id">{report.id}</span></div><Heading level={3}>{report.title}</Heading><Paragraph>{report.description}</Paragraph><div className="report-facts"><span><UserRound size={15} />{report.reportedBy}</span><span><Landmark size={15} />{report.suspectedAgency || 'Etat ikke foreslått'}</span><span><Sparkles size={15} />KI-treff {Math.round(report.confidence * 100)} %</span></div><div className="ai-suggestion-box"><strong>KI-forslag, ikke konklusjon</strong>{report.aiSuggestions.map((suggestion) => <span key={suggestion}>· {suggestion}</span>)}</div><div className="report-actions"><select value={report.reviewStatus} onChange={(event) => void onStatusChange(report.id, event.target.value as UserReportedRequirement['reviewStatus'])} aria-label={`Status for ${report.title}`}><option value="new">Nytt</option><option value="needs_more_info">Trenger mer info</option><option value="forwarded">Sendt videre</option><option value="confirmed">Bekreftet</option><option value="rejected">Avvist</option><option value="duplicate">Duplikat</option></select><Button variant="secondary">Åpne kilder</Button></div></Card>)}</div></section>;
+const reviewStatusLabels: Record<UserReportedRequirement['reviewStatus'], string> = {
+  new: 'Nytt',
+  needs_more_info: 'Trenger mer info',
+  forwarded: 'Sendt videre',
+  confirmed: 'Bekreftet',
+  rejected: 'Avvist',
+  duplicate: 'Duplikat',
+};
+
+function AdminView({ reports, onStatusChange }: { reports: UserReportedRequirement[]; onStatusChange: (id: string, status: UserReportedRequirement['reviewStatus'], note: string) => Promise<void> }) {
+  const [filter, setFilter] = useState<'all' | UserReportedRequirement['reviewStatus']>('all');
+  const [query, setQuery] = useState('');
+  const [selectedReport, setSelectedReport] = useState<UserReportedRequirement | null>(null);
+  const filtered = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase('nb-NO');
+    return reports
+      .filter((report) => filter === 'all' || report.reviewStatus === filter)
+      .filter((report) => !normalizedQuery || `${report.title} ${report.description} ${report.reportedBy} ${report.suspectedAgency ?? ''}`.toLocaleLowerCase('nb-NO').includes(normalizedQuery))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }, [filter, query, reports]);
+  const openCount = reports.filter((item) => item.reviewStatus === 'new' || item.reviewStatus === 'needs_more_info').length;
+  const decidedCount = reports.length - openCount;
+  return <section className="admin-page">
+    <div className="admin-heading"><div><p className="eyebrow">Intern arbeidsflate</p><Heading level={1}>Saksbehandlerkø</Heading><Paragraph>Vurder innspill før de eventuelt sendes til Brønnøysundregistrene eller foreslått etat. Et innspill blir aldri en offisiell oppgave automatisk.</Paragraph></div><div className="admin-summary"><div><strong>{openCount}</strong><span>åpne saker</span></div><div><strong>{reports.filter((item) => item.reviewStatus === 'needs_more_info').length}</strong><span>trenger mer info</span></div><div><strong>{decidedCount}</strong><span>avgjort</span></div></div></div>
+    <div className="admin-toolbar"><div className="filter-row"><Filter size={16} /><select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} aria-label="Filtrer innspill"><option value="all">Alle statuser</option>{Object.entries(reviewStatusLabels).map(([status, label]) => <option value={status} key={status}>{label}</option>)}</select><Textfield className="report-search" aria-label="Søk i innspill" placeholder="Søk i tittel, innmelder eller etat" value={query} onChange={(event) => setQuery(event.target.value)} /></div><span className="audit-note"><ShieldCheck size={16} /> Alle vurderinger logges</span></div>
+    {filtered.length > 0 ? <div className="reports-grid">{filtered.map((report) => <Card className="surface-card report-card" key={report.id}><div className="report-card-top"><TrustLabel level="USER_REPORTED" /><span className={`review-status review-status-${report.reviewStatus}`}>{reviewStatusLabels[report.reviewStatus]}</span></div><div className="report-card-heading"><div><Heading level={3}>{report.title}</Heading><span className="report-id">{report.id} · mottatt {formatDateTime(report.createdAt)}</span></div></div><Paragraph>{report.description}</Paragraph><div className="report-facts"><span><UserRound size={15} />{report.reportedBy}</span><span><Landmark size={15} />{report.suspectedAgency || 'Etat ikke foreslått'}</span><span><Sparkles size={15} />KI-treff {Math.round(report.confidence * 100)} %</span></div><div className="ai-suggestion-box"><strong>KI-forslag, ikke konklusjon</strong>{report.aiSuggestions.map((suggestion) => <span key={suggestion}>· {suggestion}</span>)}</div><div className="report-actions"><span className="review-updated">Sist endret {formatDateTime(report.updatedAt)}</span><Button variant="secondary" onClick={() => setSelectedReport(report)}>Åpne sak <ChevronRight size={15} /></Button></div></Card>)}</div> : <Card className="surface-card admin-empty"><Heading level={2}>Ingen innspill i dette utvalget</Heading><Paragraph>Prøv et annet filter eller søk etter en annen sak.</Paragraph></Card>}
+    {selectedReport && <ReviewDialog report={selectedReport} onClose={() => setSelectedReport(null)} onSave={async (status, note) => { await onStatusChange(selectedReport.id, status, note); setSelectedReport(null); }} />}
+  </section>;
+}
+
+function ReviewDialog({ report, onClose, onSave }: { report: UserReportedRequirement; onClose: () => void; onSave: (status: UserReportedRequirement['reviewStatus'], note: string) => Promise<void> }) {
+  const [status, setStatus] = useState(report.reviewStatus);
+  const [note, setNote] = useState(report.reviewNote ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async () => {
+    if (note.trim().length < 3) {
+      setError('Skriv en kort begrunnelse før saken lagres.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await onSave(status, note.trim());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Kunne ikke lagre vurderingen.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <div className="dialog-backdrop" role="presentation"><div className="dialog review-dialog" role="dialog" aria-modal="true" aria-labelledby="review-dialog-title"><div className="dialog-heading"><div><p className="eyebrow">Saksdetalj · {report.id}</p><Heading level={2} id="review-dialog-title">{report.title}</Heading><Paragraph>Vurderingen gjelder bare dette brukerinnspillet. Den endrer ikke Oppgaveregisteret.</Paragraph></div><button type="button" onClick={onClose} aria-label="Lukk"><X /></button></div><div className="review-detail-grid"><section className="review-panel"><div className="review-panel-heading"><strong>Innspillet</strong><TrustLabel level="USER_REPORTED" /></div><p>{report.description}</p><dl className="review-facts"><div><dt>Innmeldt av</dt><dd>{report.reportedBy}</dd></div><div><dt>Foreslått etat</dt><dd>{report.suspectedAgency || 'Ikke oppgitt'}</dd></div><div><dt>Målgruppe</dt><dd>{report.targetGroup || 'Ikke oppgitt'}</dd></div><div><dt>Frekvens/fristsignal</dt><dd>{[report.frequency, report.deadline].filter(Boolean).join(' · ') || 'Ikke oppgitt'}</dd></div><div><dt>Mulig hjemmel</dt><dd>{report.suspectedLegalBasis || 'Ikke oppgitt'}</dd></div></dl></section><section className="review-panel"><div className="review-panel-heading"><strong>KI-forslag</strong><span className="ai-review-label"><Sparkles size={14} /> Ikke konklusjon</span></div>{report.aiSuggestions.length > 0 ? <ul>{report.aiSuggestions.map((suggestion) => <li key={suggestion}>{suggestion}</li>)}</ul> : <p className="muted">Ingen KI-forslag registrert.</p>}<div className="review-separation-note"><ShieldCheck size={15} />Bruk offisielle kilder og saksbehandlers vurdering som beslutningsgrunnlag.</div></section></div><section className="review-section"><div className="review-section-heading"><div><strong>Kilder og vedlegg</strong><span>Alle lenker er brukerinnsendt inntil de er kontrollert.</span></div><TrustLabel level="USER_REPORTED" /></div>{report.evidenceLinks.length > 0 ? <div className="review-links">{report.evidenceLinks.map((link) => { const safeUrl = safeExternalUrl(link); return safeUrl ? <a href={safeUrl} target="_blank" rel="noreferrer" key={link}>{link}<ChevronRight size={14} /></a> : <span className="review-link-invalid" key={link}>{link}<small>Lenken må være HTTP eller HTTPS før den kan åpnes.</small></span>; })}</div> : <p className="muted">Ingen kilder eller vedlegg er sendt inn.</p>}</section>{report.reviewHistory && report.reviewHistory.length > 0 && <section className="review-section"><div className="review-section-heading"><div><strong>Vurderingshistorikk</strong><span>Nyeste vurdering vises først.</span></div><History size={17} /></div><div className="review-history">{[...report.reviewHistory].reverse().map((event) => <div className="review-history-item" key={event.id}><div><strong>{reviewStatusLabels[event.status]}</strong><span>{event.reviewedByName} · {formatDateTime(event.createdAt)}</span></div><p>{event.note}</p></div>)}</div></section>}<section className="review-form"><label>Status<select value={status} onChange={(event) => setStatus(event.target.value as UserReportedRequirement['reviewStatus'])}>{Object.entries(reviewStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>Begrunnelse for vurderingen<Textarea rows={4} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Hva er kontrollert, og hva bør skje videre?" /></label>{error && <Alert data-color="danger"><AlertCircle size={17} />{error}</Alert>}</section><div className="dialog-actions"><Button variant="secondary" onClick={onClose} disabled={saving}>Avbryt</Button><Button onClick={() => void submit()} disabled={saving}>{saving ? 'Lagrer…' : 'Lagre vurdering'}</Button></div></div></div>;
 }
 
 export default App;

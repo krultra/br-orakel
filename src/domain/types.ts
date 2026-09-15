@@ -197,9 +197,25 @@ export interface UserReportedRequirement {
   evidenceLinks: string[];
   aiSuggestions: string[];
   confidence: number;
-  reviewStatus: 'new' | 'needs_more_info' | 'forwarded' | 'confirmed' | 'rejected' | 'duplicate';
+  reviewStatus: RequirementReviewStatus;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  reviewHistory?: RequirementReviewEvent[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type RequirementReviewStatus = 'new' | 'needs_more_info' | 'forwarded' | 'confirmed' | 'rejected' | 'duplicate';
+
+export interface RequirementReviewEvent {
+  id: string;
+  status: RequirementReviewStatus;
+  reviewedBy: string;
+  reviewedByName: string;
+  note: string;
+  createdAt: string;
 }
 
 export interface ChatAnswer {

@@ -28,6 +28,8 @@ test('brukerinnspill får egen status og kan oppdateres', async () => {
   const before = await adapter.list();
   const created = await adapter.create({ title: 'Ny plikt', description: 'Beskrivelse', reportedBy: 'Test', evidenceLinks: [], aiSuggestions: [], confidence: 0.2, reviewStatus: 'new' });
   assert.equal((await adapter.list()).length, before.length + 1);
-  const updated = await adapter.updateStatus(created.id, 'needs_more_info');
+  const updated = await adapter.updateStatus(created.id, 'needs_more_info', { reviewedBy: 'cw-1', reviewedByName: 'Saksbehandler', note: 'Trenger dokumentasjon på hvem som har sendt forespørselen.' });
   assert.equal(updated?.reviewStatus, 'needs_more_info');
+  assert.equal(updated?.reviewedByName, 'Saksbehandler');
+  assert.equal(updated?.reviewHistory?.[0]?.note, 'Trenger dokumentasjon på hvem som har sendt forespørselen.');
 });
