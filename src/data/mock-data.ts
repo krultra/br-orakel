@@ -1,4 +1,5 @@
 import type { Obligation, Organization, Source, UserReportedRequirement } from '../domain/types.js';
+import { withSourceAuthority } from './authorized-sources.js';
 
 export const mockOrganization: Organization = {
   orgNumber: '999999999',
@@ -15,7 +16,7 @@ export const mockOrganization: Organization = {
   sources: ['source-brreg-org'],
 };
 
-const source = (value: Omit<Source, 'retrievedAt'>): Source => ({
+const source = (value: Omit<Source, 'retrievedAt'>): Source => withSourceAuthority({
   ...value,
   retrievedAt: '2026-09-01T10:00:00.000Z',
 });

@@ -9,6 +9,7 @@ import { EnhetsregisteretAdapter, EnhetsregisteretError } from '../src/data/enhe
 import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/data/dataset-organization-adapter.js';
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
+import { authorizedSourceDomains, withSourceAuthority } from '../src/data/authorized-sources.js';
 import type { DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
 import { aggregateRecurringStatus } from '../src/domain/task-status.js';
 import { DemoStore } from './demo-store.js';
@@ -161,7 +162,7 @@ function applyPreference(obligation: Obligation, preference?: TaskPreference, or
 }
 
 const sourcesForOrganization = async (query: string, orgNumber?: string) => {
-  const availableSources = await sources.search(query);
+  const availableSources = (await sources.search(query)).map(withSourceAuthority);
   if (!orgNumber) return availableSources;
   const normalizedOrgNumber = orgNumber.replace(/\s/g, '');
   return availableSources.map((source) => source.id === 'source-brreg-org'
@@ -404,6 +405,11 @@ app.get('/api/sources', async (request) => {
   const { q = '', orgNumber } = request.query as { q?: string; orgNumber?: string };
   return sourcesForOrganization(q, orgNumber);
 });
+
+app.get('/api/sources/policy', async () => ({
+  domains: authorizedSourceDomains,
+  rule: 'Bare AUTHORITATIVE og OFFICIAL_GUIDANCE kan brukes som autoritativt kildegrunnlag. DISCOVERY og UNVERIFIED må merkes tydelig.',
+}));
 
 app.get('/api/reported-requirements', async () => requirements.list());
 

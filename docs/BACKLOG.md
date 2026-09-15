@@ -138,17 +138,17 @@ kan se dem. Historiske svar viser hvilke kilder som faktisk ble brukt.
 ### Spor D – autoriserte kilder og online retrieval
 
 **Eier:** data/API  
-**Status:** READY  
+**Status:** IN PROGRESS
 **Avhengigheter:** ingen for første allowlist
 
-- [ ] Implementere en vedlikeholdbar allowlist for autoritative domener.
-- [ ] Klassifisere kilder som `AUTHORITATIVE`, `OFFICIAL_GUIDANCE`,
+- [x] Implementere en vedlikeholdbar allowlist for autoritative domener.
+- [x] Klassifisere kilder som `AUTHORITATIVE`, `OFFICIAL_GUIDANCE`,
   `DISCOVERY` eller `UNVERIFIED`.
 - [ ] La losen hente relevante sider online når spørsmålet krever det.
-- [ ] Ikke lagre en lokal kopi av all veiledning som standard.
+- [x] Ikke lagre en lokal kopi av all veiledning som standard.
 - [ ] Lagre bare metadata, kilde-URL, utdrag brukt i svaret og tidspunkt.
-- [ ] Avvise eller tydelig merke kilder utenfor allowlisten.
-- [ ] Vise kildegrunnlag og usikkerhet i hvert svar.
+- [x] Avvise eller tydelig merke kilder utenfor allowlisten.
+- [x] Vise kildegrunnlag og usikkerhet i hvert svar.
 
 **Akseptanse:** Losen kan ikke omtale en tilfeldig nettside som autoritativ.
 Saksbehandler kan senere vedlikeholde listen uten å endre promptlogikken.

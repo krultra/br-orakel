@@ -161,6 +161,10 @@ function TrustLabel({ level }: { level: string }) {
   return <span className={`trust trust-${level.toLowerCase()}`}><ShieldCheck size={14} /> {labels[level] ?? level}</span>;
 }
 
+function sourceAuthorityLabel(authority?: Source['authority']) {
+  return ({ AUTHORITATIVE: 'Autoritativ kilde', OFFICIAL_GUIDANCE: 'Offisiell veiledning', DISCOVERY: 'Oppdagelseskilde', UNVERIFIED: 'Ikke verifisert' } as Record<string, string>)[authority ?? 'UNVERIFIED'];
+}
+
 function App() {
   const [user, setUser] = useState<DemoUser | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
@@ -550,7 +554,7 @@ function ObligationDetail({ orgNumber, obligation, occurrenceDate, sources, onTa
 function SourcePanel({ sources }: { sources: Source[] }) {
   const [query, setQuery] = useState('');
   const filtered = query ? sources.filter((source) => `${source.title} ${source.relevantExcerpt}`.toLowerCase().includes(query.toLowerCase())) : sources.slice(0, 3);
-  return <Card className="surface-card source-card"><div className="section-title"><div><p className="eyebrow">Kunnskapsgrunnlag</p><Heading level={3}>Kilder</Heading></div><Search size={18} /></div><Textfield aria-label="Søk i kilder" placeholder="Søk i godkjente kilder" value={query} onChange={(event) => setQuery(event.target.value)} />{filtered.map((source) => <div className="source-preview" key={source.id}><TrustLabel level={source.officiality} /><strong>{source.title}</strong><p>{source.relevantExcerpt}</p></div>)}</Card>;
+  return <Card className="surface-card source-card"><div className="section-title"><div><p className="eyebrow">Kunnskapsgrunnlag</p><Heading level={3}>Kilder</Heading></div><Search size={18} /></div><Textfield aria-label="Søk i kilder" placeholder="Søk i godkjente kilder" value={query} onChange={(event) => setQuery(event.target.value)} />{filtered.map((source) => <div className="source-preview" key={source.id}><div className="source-label-row"><TrustLabel level={source.officiality} /><span className={`source-authority authority-${source.authority?.toLowerCase() ?? 'unverified'}`}>{sourceAuthorityLabel(source.authority)}</span></div><strong>{source.title}</strong><p>{source.relevantExcerpt}</p></div>)}</Card>;
 }
 
 function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[] }) {

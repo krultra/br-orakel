@@ -7,6 +7,8 @@ export type TrustLevel =
   | 'CONFIRMED'
   | 'REJECTED';
 
+export type SourceAuthority = 'AUTHORITATIVE' | 'OFFICIAL_GUIDANCE' | 'DISCOVERY' | 'UNVERIFIED';
+
 export type TaskStatus =
   | 'not_started'
   | 'in_progress'
@@ -101,6 +103,8 @@ export interface Source {
   url: string;
   sourceType: 'register' | 'guidance' | 'law' | 'dataset';
   officiality: TrustLevel;
+  /** Policy classification based on the approved source catalogue. */
+  authority?: SourceAuthority;
   retrievedAt: string;
   relevantExcerpt: string;
 }
@@ -212,6 +216,7 @@ export interface ChatExchangeSource {
   title: string;
   url: string;
   officiality: TrustLevel;
+  authority?: SourceAuthority;
   retrievedAt: string;
   relevantExcerpt: string;
 }

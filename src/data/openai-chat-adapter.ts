@@ -57,6 +57,7 @@ Regler:
 - Bruk bare opplysningene og kildene i EVIDENCE-delen. Ikke finn på hjemler, frister eller kilder.
 - Skill alltid mellom OFFICIAL, OFFICIAL_GUIDANCE, USER_REPORTED og AI_SUGGESTION/UNDER_REVIEW.
 - Behandle userInputs som brukeropplysninger, ikke som offisielle registerdata. Si fra når de påvirker svaret.
+- Bruk bare kilder med authority AUTHORITATIVE eller OFFICIAL_GUIDANCE som autoritativt grunnlag. DISCOVERY og UNVERIFIED kan gi spor, men må merkes som ikke-autoritative.
 - Hvis informasjonen er utilstrekkelig, motstridende eller bare et brukerinnspill, si det tydelig i uncertainty.
 - sourceIds skal bare inneholde ID-er fra sources i EVIDENCE-delen.
 - Svar på norsk, konkret og handlingsrettet. Foreslå oppfølgingsspørsmål når virksomhetens faktiske forhold mangler.
