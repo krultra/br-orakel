@@ -4,6 +4,7 @@ import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
 import type { ChatAnswer, ChatExchange, ChatFeedback, DemoUser, Obligation, Organization, OrganizationProfile, Source, TaskStatus, UserReportedRequirement } from './domain/types';
+import { buildEventGuides, obligationsForEvent, organizationEventContext, type EventGuide } from './data/event-navigator';
 import { isMutedForDate } from './domain/task-visibility';
 import { statusForDate } from './domain/task-status';
 import { parseFormattedAnswer } from './format-answer';
@@ -357,6 +358,8 @@ function OrganizationProfileDialog({ organization, profile, sources, onClose, on
 
 function Overview({ organization, organizationMutedBefore, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged, onOrganizationViewChanged }: { organization: Organization; organizationMutedBefore: string; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void; onOrganizationViewChanged: () => void }) {
   const [showReport, setShowReport] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState<'overview' | 'events'>('overview');
+  const [chatPrompt, setChatPrompt] = useState('');
   const [taskQuery, setTaskQuery] = useState('');
   const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | 'periodic' | 'event'>('all');
   const [eventFilter, setEventFilter] = useState('all');
@@ -366,6 +369,7 @@ function Overview({ organization, organizationMutedBefore, obligations, catalogO
   const mainScrollTop = useRef(0);
   const preserveMainScroll = (change: () => void) => { mainScrollTop.current = mainColumnRef.current?.scrollTop ?? 0; change(); };
   const eventOptions = useMemo(() => [...new Set(obligations.filter(isEventLike).map(eventCategory))].sort((left, right) => left.localeCompare(right, 'nb')), [obligations]);
+  const eventGuides = useMemo(() => buildEventGuides(allObligations), [allObligations]);
   const filteredTaskObligations = useMemo(() => {
     const query = taskQuery.trim().toLocaleLowerCase('nb-NO');
     return obligations.filter((item) => {
@@ -393,19 +397,43 @@ function Overview({ organization, organizationMutedBefore, obligations, catalogO
   };
   return <>
     <section className="context-bar"><div className="context-company"><div className="company-icon"><Landmark size={20} /></div><div><strong>{organization.name}</strong><span>Org.nr. {organization.orgNumber} · {organization.organizationForm} · {organization.municipality}</span></div></div><div className="context-facts"><span><strong>{allObligations.length}</strong> i katalogen</span><span><strong>{obligations.length}</strong> i arbeidslisten</span><span><strong>{allObligations.reduce((sum, item) => sum + item.estimatedMinutes, 0)} min</strong> estimert</span></div></section>
+    <nav className="workspace-switcher" aria-label="Velg arbeidsflate"><span>Arbeidsflate</span><button className={workspaceView === 'overview' ? 'selected' : ''} onClick={() => setWorkspaceView('overview')}>Oversikt</button><button className={workspaceView === 'events' ? 'selected' : ''} onClick={() => setWorkspaceView('events')}>Hendelsesnavigator</button></nav>
     <section className="dashboard-grid">
       <div className="main-column" ref={mainColumnRef}>
+        {workspaceView === 'events' ? <EventNavigator organization={organization} obligations={allObligations} guides={eventGuides} sources={sources} onSelectObligation={(id) => { setSelectedObligationId(id); setSelectedOccurrenceDate(null); }} onAskLos={setChatPrompt} /> : <>
         <Card className="surface-card calendar-card"><div className="card-heading-row"><div><p className="eyebrow">Rullerende 12 måneder</p><Heading level={2}>Årshjul</Heading><span className="calendar-caption">Katalog over relevante oppgaver. Velg en oppgave for å legge den i arbeidslisten.</span></div><div className="calendar-controls"><button className="calendar-nav" onClick={() => setCalendarStart(shiftMonth(calendarStart, -1))} aria-label="Vis forrige måned"><ChevronLeft size={17} /></button><span>{formatDate(dateKey(calendarStart), true)} – {formatDate(dateKey(shiftMonth(calendarStart, 11)), true)}</span><button className="calendar-nav" onClick={() => setCalendarStart(shiftMonth(calendarStart, 1))} aria-label="Vis neste måned"><ChevronRight size={17} /></button><button className="calendar-today" onClick={() => setCalendarStart(shiftMonth(monthStart(new Date()), -3))}>I dag</button><div className="segmented"><button className={calendarMode === 'year' ? 'selected' : ''} onClick={() => setCalendarMode('year')}>Årshjul</button><button className={calendarMode === 'list' ? 'selected' : ''} onClick={() => setCalendarMode('list')}>Liste</button></div></div></div>{calendarMode === 'year' ? <YearWheel obligations={catalogObligations} start={calendarStart} includeHidden={visibilityFilter !== 'visible'} selectedId={selectedObligation?.id} selectedOccurrenceDate={selectedOccurrenceDate ?? undefined} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} /> : <ObligationList obligations={catalogObligations} selectedId={selectedObligation?.id} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} />}</Card>
         <div className="workspace-heading"><div><p className="eyebrow">Arbeidsliste</p><Heading level={2}>{taskTypeFilter === 'event' ? 'Hendelser som krever oppfølging' : 'Det som må gjøres'}</Heading><span className="calendar-caption">Bare oppgaver du har aktivert med frist eller gjentakelse vises her.</span></div><div className="filter-row"><Filter size={16} /><select value={statusFilter} onChange={(event) => preserveMainScroll(() => setStatusFilter(event.target.value as typeof statusFilter))} aria-label="Filtrer oppgaver"><option value="all">Alle statuser</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select value={visibilityFilter} onChange={(event) => preserveMainScroll(() => setVisibilityFilter(event.target.value as typeof visibilityFilter))} aria-label="Filtrer synlighet"><option value="visible">Synlige</option><option value="muted">Dempede</option><option value="hidden">Skjulte</option><option value="all">Alle oppgaver</option></select>{visibilityFilter === 'muted' && mutedCount > 0 && <Button variant="secondary" onClick={() => void activateAllMuted()} disabled={activatingAllMuted}>{activatingAllMuted ? 'Aktiverer…' : `Aktiver alle dempede (${mutedCount})`}</Button>}<select value={taskTypeFilter} onChange={(event) => { setTaskTypeFilter(event.target.value as typeof taskTypeFilter); setEventFilter('all'); }} aria-label="Filtrer oppgavetype"><option value="all">Alle oppgavetyper</option><option value="periodic">Med fast frist</option><option value="event">Ved hendelse</option></select>{taskTypeFilter === 'event' && <select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} aria-label="Filtrer hendelse"><option value="all">Alle hendelser</option>{eventOptions.map((event) => <option key={event} value={event}>{event}</option>)}</select>}<select value={taskSort} onChange={(event) => setTaskSort(event.target.value as typeof taskSort)} aria-label="Sorter arbeidsliste"><option value="deadline">Nærmeste frist først</option><option value="status">Sorter på status</option><option value="agency">Sorter på etat</option></select><Textfield className="task-search" aria-label="Søk i arbeidslisten" placeholder="Søk i aktive oppgaver" value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} /></div></div>
         {filteredTaskObligations.length > 0 ? <div className="task-list">{filteredTaskObligations.map((item) => <TaskRow key={item.id} obligation={item} selected={selectedObligation?.id === item.id} onClick={() => { setSelectedObligationId(item.id); setSelectedOccurrenceDate(item.deadlineDates?.[0] ?? null); }} />)}</div> : <div className="task-empty"><strong>Ingen aktive oppgaver matcher filteret</strong><span>Velg en oppgave i katalogen ovenfor og lagre en frist eller gjentakelse for å legge den til.</span></div>}
         <button className="report-cta" onClick={() => setShowReport(true)}><div className="report-cta-icon"><Plus size={20} /></div><div><strong>Finner du en plikt som mangler?</strong><span>Meld inn et mulig krav til menneskelig gjennomgang.</span></div><ChevronRight size={20} /></button>
+        </>}
       </div>
-      <aside className="side-column"><ChatPanel orgNumber={organization.orgNumber} sources={sources} /><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} occurrenceDate={selectedOccurrenceDate} sources={sources} onTaskChanged={onTaskChanged} /><SourcePanel sources={sources} /></aside>
+      <aside className="side-column"><ChatPanel orgNumber={organization.orgNumber} sources={sources} prefillQuestion={chatPrompt} /><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} occurrenceDate={selectedOccurrenceDate} sources={sources} onTaskChanged={onTaskChanged} /><SourcePanel sources={sources} /></aside>
     </section>
     {selectedObligation && <MuteControl orgNumber={organization.orgNumber} obligation={selectedObligation} onTaskChanged={onTaskChanged} />}
     <OrganizationMuteControl orgNumber={organization.orgNumber} mutedBefore={organizationMutedBefore} onChanged={onOrganizationViewChanged} />
     {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => setShowReport(false)} />}
   </>;
+}
+
+function EventNavigator({ organization, obligations, guides, sources, onSelectObligation, onAskLos }: { organization: Organization; obligations: Obligation[]; guides: EventGuide[]; sources: Source[]; onSelectObligation: (id: string) => void; onAskLos: (prompt: string) => void }) {
+  const [selectedEventId, setSelectedEventId] = useState(guides[0]?.id ?? '');
+  const [query, setQuery] = useState('');
+  useEffect(() => {
+    if (!guides.some((guide) => guide.id === selectedEventId)) setSelectedEventId(guides[0]?.id ?? '');
+  }, [guides, selectedEventId]);
+  const visibleGuides = guides.filter((guide) => `${guide.label} ${guide.title} ${guide.summary}`.toLocaleLowerCase('nb-NO').includes(query.trim().toLocaleLowerCase('nb-NO')));
+  const selectedGuide = guides.find((guide) => guide.id === selectedEventId) ?? visibleGuides[0] ?? guides[0];
+  const relatedObligations = selectedGuide ? obligationsForEvent(selectedGuide, obligations) : [];
+  const relatedSources = selectedGuide ? sources.filter((source) => selectedGuide.sourceIds.includes(source.id)) : [];
+  const losQuestion = selectedGuide ? `Det har skjedd «${selectedGuide.label}» i ${organization.name}. Hvilke rapporteringsplikter og neste steg bør vi undersøke, basert på virksomhetsinformasjonen du har?` : '';
+  return <div className="event-navigator-view">
+    <Card className="surface-card event-navigator-intro"><div><p className="eyebrow">Rapporteringsnavigator</p><Heading level={2}>Hva gjør vi når noe skjer?</Heading><Paragraph>Velg hendelsen som passer best. Veiledningen er et arbeidsutgangspunkt; kontroller alltid viktige forhold i kildene.</Paragraph></div><div className="event-org-context"><Landmark size={17} /><span>{organizationEventContext(organization)}</span></div></Card>
+    <div className="event-navigator-toolbar"><Textfield aria-label="Søk i hendelser" placeholder="Søk etter hendelse" value={query} onChange={(event) => setQuery(event.target.value)} /><span>{visibleGuides.length} hendelser</span></div>
+    <div className="event-navigator-layout">
+      <div className="event-guide-list" aria-label="Hendelser">{visibleGuides.map((guide) => <button key={guide.id} className={selectedGuide?.id === guide.id ? 'selected' : ''} onClick={() => setSelectedEventId(guide.id)}><span className="event-guide-icon"><CircleHelp size={17} /></span><span><strong>{guide.label}</strong><small>{guide.isPredefined ? 'Forhåndsveiledning' : 'Fra Oppgaveregisteret'}</small></span><ChevronRight size={16} /></button>)}{visibleGuides.length === 0 && <p className="muted">Ingen hendelser matcher søket.</p>}</div>
+      {selectedGuide && <Card className="surface-card event-guide-detail"><div className="event-detail-heading"><div><p className="eyebrow">{selectedGuide.isPredefined ? 'Forhåndsveiledning' : 'Kataloghendelse'}</p><Heading level={2}>{selectedGuide.title}</Heading></div><Tag>{selectedGuide.label}</Tag></div><Paragraph>{selectedGuide.summary}</Paragraph><div className="event-criteria"><strong>Relevant for denne virksomheten</strong><span>{selectedGuide.criteria.join(' · ')}</span></div><div className="event-step-section"><strong>Foreslått sjekkliste</strong><ol>{selectedGuide.steps.map((step) => <li key={step}>{step}</li>)}</ol></div><div className="event-task-section"><div className="section-title"><strong>Relevante rapporteringsoppgaver</strong><span>{relatedObligations.length}</span></div>{relatedObligations.length > 0 ? <div className="event-related-tasks">{relatedObligations.map((obligation) => <button key={obligation.id} onClick={() => onSelectObligation(obligation.id)}><span><strong>{obligation.name}</strong><small>{obligation.responsibleAgency} · {obligation.frequency}</small></span><ChevronRight size={16} /></button>)}</div> : <p className="muted">Ingen oppgave i katalogen er koblet direkte til denne hendelsen ennå.</p>}</div><div className="event-questions"><strong>Mulige spørsmål til losen</strong>{selectedGuide.questions.map((question) => <button key={question} onClick={() => onAskLos(`${question} Tilpass svaret til ${organization.name} og opplysningene som finnes om virksomheten.`)}>{question}</button>)}{losQuestion && <Button variant="secondary" onClick={() => onAskLos(losQuestion)}><Sparkles size={15} /> Forbered spørsmål om denne hendelsen</Button>}</div>{relatedSources.length > 0 && <div className="event-sources"><strong>Kilder i veiledningen</strong>{relatedSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id}><ShieldCheck size={14} />{source.title}</a>)}</div>}</Card>}
+    </div>
+  </div>;
 }
 
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
@@ -557,7 +585,7 @@ function SourcePanel({ sources }: { sources: Source[] }) {
   return <Card className="surface-card source-card"><div className="section-title"><div><p className="eyebrow">Kunnskapsgrunnlag</p><Heading level={3}>Kilder</Heading></div><Search size={18} /></div><Textfield aria-label="Søk i kilder" placeholder="Søk i godkjente kilder" value={query} onChange={(event) => setQuery(event.target.value)} />{filtered.map((source) => <div className="source-preview" key={source.id}><div className="source-label-row"><TrustLabel level={source.officiality} /><span className={`source-authority authority-${source.authority?.toLowerCase() ?? 'unverified'}`}>{sourceAuthorityLabel(source.authority)}</span></div><strong>{source.title}</strong><p>{source.relevantExcerpt}</p></div>)}</Card>;
 }
 
-function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[] }) {
+function ChatPanel({ orgNumber, sources, prefillQuestion }: { orgNumber: string; sources: Source[]; prefillQuestion?: string }) {
   const [question, setQuestion] = useState('Hvilke oppgaver gjelder for oss nå?');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
@@ -581,6 +609,9 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
     setFeedback(undefined);
     void api.chatHistory(orgNumber).then(setHistory).catch(() => setHistory([]));
   }, [orgNumber]);
+  useEffect(() => {
+    if (prefillQuestion) setQuestion(prefillQuestion);
+  }, [prefillQuestion]);
   useEffect(() => () => abortControllerRef.current?.abort(), []);
   const ask = async () => {
     const nextQuestion = question.trim();

@@ -156,15 +156,15 @@ Saksbehandler kan senere vedlikeholde listen uten å endre promptlogikken.
 ### Spor E – rapporteringsnavigator og hendelser
 
 **Eier:** produkt + frontend + domene  
-**Status:** READY  
+**Status:** IN PROGRESS  
 **Avhengigheter:** virksomhetsprofil og autoriserte kilder
 
-- [ ] Lage en egen hovedvisning for hendelsesnavigatoren.
-- [ ] Starte med et lite antall hendelser, for eksempel ny ansatt, endret
+- [x] Lage en egen hovedvisning for hendelsesnavigatoren.
+- [x] Starte med et lite antall hendelser, for eksempel ny ansatt, endret
   omsetning, sykefravær/foreldrepermisjon og endring i virksomhet.
-- [ ] Vise trinn, nødvendige data, kilder og relevante rapporteringsplikter.
-- [ ] Bruke losen for hendelser som ikke har forhåndsdefinert veiledning.
-- [ ] Tilpasse svar og spørsmål til den valgte virksomheten.
+- [x] Vise trinn, virksomhetskontekst, kilder og relevante rapporteringsplikter.
+- [x] Bruke losen for hendelser som ikke har forhåndsdefinert veiledning.
+- [x] Tilpasse svar og spørsmål til den valgte virksomheten.
 
 **Akseptanse:** En bruker kan velge en hendelse og få en kort, virksomhetstilpasset
 oversikt over hva som bør undersøkes videre.
