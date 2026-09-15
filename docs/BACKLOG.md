@@ -4,6 +4,10 @@ Dette dokumentet er arbeidslisten for versjon 2.0 etter demo-release `1.0.0`.
 Regnskapstall er bevisst utsatt til versjon 3.0. Saksbehandlerflyt og
 prosess-støtte ligger fortsatt etter versjon 2.0.
 
+Planen for neste hovedversjon ligger i
+[V3_PLAN.md](V3_PLAN.md). Den prioriterer begrepsassistent, tilsyn og
+datagjenbruk, mens regnskapsadapteren videreføres som et avgrenset P1-spor.
+
 ## Produktbeslutninger
 
 ### Automatiske rapporteringer
