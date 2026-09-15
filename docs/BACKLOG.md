@@ -81,17 +81,19 @@ en beslutning eller annen leveranse.
 ### Spor A – arbeidsstatus og kalender
 
 **Eier:** frontend + domene  
-**Status:** READY  
+**Status:** IN PROGRESS
 **Avhengigheter:** ingen
 
-- [ ] Modellere automatiske innsendinger og automatisk beregnet ferdig-status.
-- [ ] Oppdatere A-melding i mockdata med systeminnsending.
-- [ ] Skille automatisk håndtert fra manuelt ferdig i tekst, ikon og filter.
-- [ ] Unngå gult varsel for automatisk håndterte oppgaver.
-- [ ] Fremheve gjeldende måned tydelig i årshjulet.
-- [ ] Lage filter for dempede oppgaver.
-- [ ] Implementere `isMuted` separat fra `isActivated` og `isHidden`.
-- [ ] Støtte aktivering av én dempet oppgave og alle dempede oppgaver.
+- [x] Modellere automatiske innsendinger og automatisk beregnet ferdig-status.
+- [x] Oppdatere A-melding i mockdata med systeminnsending.
+- [x] Skille automatisk håndtert fra manuelt ferdig i tekst, ikon og filter.
+- [x] Unngå gult varsel for automatisk håndterte oppgaver.
+- [x] Fremheve gjeldende måned tydelig i årshjulet.
+- [x] Lage filter for dempede oppgaver.
+- [x] Implementere `isMuted` separat fra `isActivated` og `isHidden`.
+- [x] Støtte aktivering av én dempet oppgave.
+- [ ] Støtte datofilter som demper alle historiske oppgaver ved ny virksomhet.
+- [ ] Støtte aktivering av alle dempede oppgaver samlet.
 
 **Akseptanse:** A-melding som ikke er manuelt markert ferdig blir ikke vist som
 en gul manuell restanse dersom den er merket som systeminnsending. Brukeren
@@ -230,4 +232,3 @@ Anbefalt første parallelle sprint:
 
 Hovedagenten integrerer delte domenekontrakter først. Hver agent skal levere
 tester, beskrive antakelser og ikke endre en annen agents primære filer.
-

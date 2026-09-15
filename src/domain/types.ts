@@ -12,6 +12,10 @@ export type TaskStatus =
   | 'in_progress'
   | 'completed';
 
+export type SubmissionMode = 'manual' | 'system' | 'unknown';
+export type CompletionSource = 'user' | 'system' | 'rule' | 'unknown';
+export type AutomaticCompletionPolicy = 'none' | 'after_deadline';
+
 export type ObligationTrigger = 'periodic' | 'event';
 
 export type UserRole = 'business' | 'caseworker';
@@ -54,6 +58,9 @@ export interface TaskPreference {
   deadlineOverride?: string | null;
   hiddenUntil?: string;
   hiddenForever?: boolean;
+  /** User-local demping; this is separate from hiding and worklist membership. */
+  muted?: boolean;
+  mutedUntil?: string;
 }
 
 export interface TaskPreferenceUpdate extends Partial<TaskPreference> {
@@ -122,9 +129,20 @@ export interface Obligation {
   isHidden?: boolean;
   /** User-local membership in the worklist; official obligations stay in the catalogue. */
   isActivated?: boolean;
+  /** User-local demping; official obligation data remains unchanged. */
+  isMuted?: boolean;
+  mutedUntil?: string;
   /** User-local adjustments, kept separate from official obligation fields. */
   localDeadline?: string;
   localComment?: string;
+  /** How the report is normally submitted. */
+  submissionMode?: SubmissionMode;
+  /** How the displayed completion state was established. */
+  completionSource?: CompletionSource;
+  /** Rule for deriving completion when a system submission receipt is unavailable. */
+  automaticCompletionPolicy?: AutomaticCompletionPolicy;
+  /** Derived system completion by occurrence; never written as user preference. */
+  automaticStatusByDate?: Record<string, TaskStatus>;
   trigger: ObligationTrigger;
   eventLabel?: string;
   registerId?: string;

@@ -62,6 +62,9 @@ button { cursor: pointer; }
 .calendar-nav, .calendar-today { display: inline-grid; place-items: center; border: 1px solid #d5dee8; border-radius: 7px; background: #fff; color: #285579; min-height: 32px; padding: 0 8px; }
 .calendar-today { font-size: 11px; }
 .calendar-nav:hover, .calendar-today:hover { border-color: #7eb3e5; background: #eff6ff; }
+.month-cell.is-current-month { border: 2px solid #2f80c0; background: linear-gradient(180deg, #eff8ff 0%, #ffffff 32%); box-shadow: 0 0 0 3px rgba(47, 128, 192, .12); }
+.month-cell.is-current-month > .month-label { color: #185a8c; font-weight: 800; }
+.current-month-label { display: block; margin-top: 2px; color: #2f80c0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .calendar-item.deadline-soon { background: #fffbeb; border-radius: 5px; padding-left: 4px; }
 .calendar-item.deadline-overdue { background: #fff1f2; border-radius: 5px; padding-left: 4px; }
 .calendar-item.deadline-completed { background: #f0fdf4; border-radius: 5px; padding-left: 4px; }
@@ -73,6 +76,16 @@ button { cursor: pointer; }
 .task-row.deadline-completed { border-left: 4px solid #16a34a; }
 .visibility-scope { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 11px; margin-top: 8px; }
 .visibility-scope select { padding: 7px 9px; border: 1px solid #d5dee8; border-radius: 7px; background: #fff; color: #334155; }
+.calendar-item.is-automated, .list-obligation.is-automated, .task-row.is-automated { background: #eff8ff; }
+.calendar-item.is-muted, .list-obligation.is-muted, .task-row.is-muted { background: #f1f5f9; color: #64748b; filter: grayscale(.55); }
+.system-dot { background: #16a34a !important; border-color: #16a34a !important; }
+.automation-label, .muted-label { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 999px; background: #e0f2fe; color: #075985; font-size: 10px; font-weight: 700; }
+.muted-label { background: #e2e8f0; color: #475569; }
+.mute-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; padding: 14px 18px; }
+.mute-card p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+.mute-actions { display: flex; align-items: end; gap: 8px; }
+.mute-actions [data-size] { min-width: 170px; }
+@media (max-width: 700px) { .mute-card, .mute-actions { align-items: stretch; flex-direction: column; } }
 .worklist-section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }
 .worklist-section p { margin: 5px 0 10px; color: #64748b; font-size: 13px; }
 @media (max-width: 1100px) { .main-column, .side-column { max-height: none; overflow: visible; padding-right: 0; } }

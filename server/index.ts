@@ -9,7 +9,7 @@ import { EnhetsregisteretAdapter, EnhetsregisteretError } from '../src/data/enhe
 import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/data/dataset-organization-adapter.js';
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
-import type { DemoUser, Obligation, TaskPreference, TaskRecurrence } from '../src/domain/types.js';
+import type { DemoUser, Obligation, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
 import { aggregateRecurringStatus } from '../src/domain/task-status.js';
 import { DemoStore } from './demo-store.js';
 
@@ -110,28 +110,46 @@ function normalizedDateMap(value: unknown): Record<string, string> | undefined {
   return entries.length ? Object.fromEntries(entries) : {};
 }
 
+function automaticStatusByDate(obligation: Obligation, today: string): Record<string, TaskStatus> {
+  if (obligation.submissionMode !== 'system' || obligation.automaticCompletionPolicy !== 'after_deadline') return {};
+  const dates = obligation.deadlineDates?.length ? obligation.deadlineDates : obligation.deadline ? [obligation.deadline] : [];
+  const result: Record<string, TaskStatus> = {};
+  for (const date of dates) if (date < today) result[date] = 'completed';
+  return result;
+}
+
 function applyPreference(obligation: Obligation, preference?: TaskPreference): Obligation {
-  if (!preference) return { ...obligation, isActivated: false };
-  const status = normalizeTaskStatus(preference.status);
   const today = new Date().toISOString().slice(0, 10);
+  const automaticStatuses = automaticStatusByDate(obligation, today);
+  if (!preference) {
+    const automaticStatus = obligation.deadline && automaticStatuses[obligation.deadline];
+    return { ...obligation, isActivated: false, ...(Object.keys(automaticStatuses).length ? { automaticStatusByDate: automaticStatuses } : {}), ...(automaticStatus ? { status: automaticStatus, completionSource: 'rule' } : {}) };
+  }
+  const status = normalizeTaskStatus(preference.status);
   const isHidden = preference.hiddenForever === true || Boolean(preference.hiddenUntil && preference.hiddenUntil >= today);
+  const isMuted = preference.muted === true || Boolean(preference.mutedUntil && preference.mutedUntil >= today);
   // Before per-instance statuses existed, a completed series was stored as one
   // global status. Treat that legacy value as the official/base status until a
   // date-specific status is written, so one old click cannot hide future work.
+  const automaticBaseStatus = obligation.deadline ? automaticStatuses[obligation.deadline] : undefined;
   const baseStatus = obligation.deadlineDates && obligation.deadlineDates.length > 1 && !preference.statusByDate && status === 'completed'
     ? obligation.status
-    : status ?? obligation.status;
+    : status ?? automaticBaseStatus ?? obligation.status;
+  const effectiveStatusByDate = { ...automaticStatuses, ...(preference.statusByDate ?? {}) };
   const withUserPreference = {
     ...obligation,
     isActivated: preference.activated === true,
-    status: aggregateRecurringStatus(baseStatus, obligation.deadlineDates, preference.statusByDate),
+    status: aggregateRecurringStatus(baseStatus, obligation.deadlineDates, Object.keys(effectiveStatusByDate).length ? effectiveStatusByDate : undefined),
     ...(preference.statusByDate ? { statusByDate: preference.statusByDate } : {}),
+    ...(Object.keys(automaticStatuses).length ? { automaticStatusByDate: automaticStatuses } : {}),
     ...(preference.deadlineByDate ? { deadlineByDate: preference.deadlineByDate } : {}),
     ...(preference.commentByDate ? { localCommentByDate: preference.commentByDate } : {}),
     ...(preference.hiddenByDate ? {
       hiddenByDate: Object.fromEntries(Object.entries(preference.hiddenByDate).map(([date, hidden]) => [date, hidden.hiddenForever === true || Boolean(hidden.hiddenUntil && hidden.hiddenUntil >= today)])),
     } : {}),
     isHidden,
+    isMuted,
+    ...(preference.mutedUntil ? { mutedUntil: preference.mutedUntil } : {}),
     ...(preference.deadlineOverride ? { localDeadline: preference.deadlineOverride } : {}),
     ...(preference.comment ? { localComment: preference.comment } : {}),
   };
@@ -312,6 +330,8 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
     deadlineOverride: hasDeadlineOverride ? (typeof body.deadlineOverride === 'string' && body.deadlineOverride ? body.deadlineOverride : undefined) : existing?.deadlineOverride,
     hiddenUntil: instanceHiddenChange ? existing?.hiddenUntil : body.hiddenForever !== undefined ? body.hiddenUntil : body.hiddenUntil ?? existing?.hiddenUntil,
     hiddenForever: instanceHiddenChange ? existing?.hiddenForever ?? false : body.hiddenForever ?? existing?.hiddenForever ?? false,
+    muted: body.muted ?? existing?.muted ?? false,
+    mutedUntil: body.mutedUntil ?? existing?.mutedUntil,
   };
   return demoStore.savePreference(user.id, preference);
 });

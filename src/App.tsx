@@ -73,11 +73,25 @@ function occurrenceHidden(obligation: Obligation, occurrenceDate?: string) {
   return occurrenceDate ? obligation.isHidden === true || obligation.hiddenByDate?.[occurrenceDate] === true : obligation.isHidden === true;
 }
 
+function isAutomated(obligation: Obligation) {
+  return obligation.submissionMode === 'system';
+}
+
+function itemStatusForDate(obligation: Obligation, date?: string) {
+  if (date && obligation.statusByDate && Object.prototype.hasOwnProperty.call(obligation.statusByDate, date)) {
+    return statusForDate(obligation.status, date, obligation.statusByDate);
+  }
+  return date && obligation.automaticStatusByDate?.[date]
+    ? obligation.automaticStatusByDate[date]
+    : statusForDate(obligation.status, date, obligation.statusByDate);
+}
+
 type DeadlineState = 'none' | 'normal' | 'soon' | 'overdue' | 'completed';
 
-function deadlineState(status: TaskStatus, date?: string): DeadlineState {
+function deadlineState(status: TaskStatus, date?: string, automated = false): DeadlineState {
   if (!date) return 'none';
   if (status === 'completed') return 'completed';
+  if (automated) return 'normal';
   const today = monthStart(new Date());
   const target = new Date(`${date}T12:00:00`);
   const days = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
@@ -88,6 +102,15 @@ function deadlineState(status: TaskStatus, date?: string): DeadlineState {
 
 function deadlineStateLabel(state: DeadlineState) {
   return ({ none: '', normal: '', soon: 'Nær frist', overdue: 'Forfalt', completed: 'Levert' } as Record<DeadlineState, string>)[state];
+}
+
+function automationLabel(obligation: Obligation) {
+  return isAutomated(obligation) ? 'Systeminnsending' : '';
+}
+
+function isCurrentMonth(value: Date) {
+  const now = new Date();
+  return value.getFullYear() === now.getFullYear() && value.getMonth() === now.getMonth();
 }
 
 function isEventLike(obligation: Obligation) {
@@ -133,7 +156,7 @@ function App() {
   const [calendarMode, setCalendarMode] = useState<'year' | 'list'>('year');
   const [calendarStart, setCalendarStart] = useState(() => shiftMonth(monthStart(new Date()), -3));
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
-  const [visibilityFilter, setVisibilityFilter] = useState<'visible' | 'hidden' | 'all'>('visible');
+  const [visibilityFilter, setVisibilityFilter] = useState<'visible' | 'hidden' | 'muted' | 'all'>('visible');
   const [loading, setLoading] = useState(false);
   const [searchingOrganizations, setSearchingOrganizations] = useState(false);
   const [toast, setToast] = useState('');
@@ -222,7 +245,7 @@ function App() {
   const filteredByStatus = statusFilter === 'all' ? obligations : obligations.filter((item) => item.status === statusFilter);
   const filteredObligations = visibilityFilter === 'all'
     ? filteredByStatus
-    : filteredByStatus.filter((item) => visibilityFilter === 'hidden' ? item.isHidden === true : item.isHidden !== true);
+    : filteredByStatus.filter((item) => visibilityFilter === 'hidden' ? item.isHidden === true : visibilityFilter === 'muted' ? item.isMuted === true : item.isHidden !== true && item.isMuted !== true);
   const activeObligations = filteredObligations.filter((item) => item.isActivated === true);
 
   return <div className="app-shell">
@@ -265,7 +288,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: DemoUser) => 
   return <main className="auth-shell"><Card className="auth-card"><form onSubmit={(event) => { event.preventDefault(); void submit(); }}><img src="/orakel-logo.svg" alt="ORaKeL" className="auth-logo" /><p className="eyebrow">Demo-tilgang</p><Heading level={1}>{mode === 'login' ? 'Logg inn i ORaKeL' : 'Opprett demo-bruker'}</Heading><Paragraph>{mode === 'login' ? 'Velg virksomhetsbruker eller saksbehandler for å starte.' : 'Brukeren lagres kun i denne hackathon-instansen.'}</Paragraph>{mode === 'register' && <Textfield label="Navn som vises" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />}{<Textfield label="Brukernavn" value={username} onChange={(event) => setUsername(event.target.value)} />}{<Textfield label="Passord" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />}{error && <Alert data-color="danger"><AlertCircle size={17} />{error}</Alert>}<Button type="submit" disabled={busy || !username || !password}>{busy ? 'Arbeider…' : mode === 'login' ? 'Logg inn' : 'Opprett bruker'}</Button><button type="button" className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{mode === 'login' ? 'Opprett ny virksomhetsbruker' : 'Jeg har allerede bruker'}</button>{mode === 'login' && <p className="demo-credentials">Demo-saksbehandler: <code>br-saksbehandler</code> / <code>demo</code></p>}</form></Card></main>;
 }
 
-function Overview({ organization, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged }: { organization: Organization; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void }) {
+function Overview({ organization, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged }: { organization: Organization; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void }) {
   const [showReport, setShowReport] = useState(false);
   const [taskQuery, setTaskQuery] = useState('');
   const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | 'periodic' | 'event'>('all');
@@ -295,14 +318,30 @@ function Overview({ organization, obligations, catalogObligations, allObligation
     <section className="dashboard-grid">
       <div className="main-column" ref={mainColumnRef}>
         <Card className="surface-card calendar-card"><div className="card-heading-row"><div><p className="eyebrow">Rullerende 12 måneder</p><Heading level={2}>Årshjul</Heading><span className="calendar-caption">Katalog over relevante oppgaver. Velg en oppgave for å legge den i arbeidslisten.</span></div><div className="calendar-controls"><button className="calendar-nav" onClick={() => setCalendarStart(shiftMonth(calendarStart, -1))} aria-label="Vis forrige måned"><ChevronLeft size={17} /></button><span>{formatDate(dateKey(calendarStart), true)} – {formatDate(dateKey(shiftMonth(calendarStart, 11)), true)}</span><button className="calendar-nav" onClick={() => setCalendarStart(shiftMonth(calendarStart, 1))} aria-label="Vis neste måned"><ChevronRight size={17} /></button><button className="calendar-today" onClick={() => setCalendarStart(shiftMonth(monthStart(new Date()), -3))}>I dag</button><div className="segmented"><button className={calendarMode === 'year' ? 'selected' : ''} onClick={() => setCalendarMode('year')}>Årshjul</button><button className={calendarMode === 'list' ? 'selected' : ''} onClick={() => setCalendarMode('list')}>Liste</button></div></div></div>{calendarMode === 'year' ? <YearWheel obligations={catalogObligations} start={calendarStart} includeHidden={visibilityFilter !== 'visible'} selectedId={selectedObligation?.id} selectedOccurrenceDate={selectedOccurrenceDate ?? undefined} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} /> : <ObligationList obligations={catalogObligations} selectedId={selectedObligation?.id} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} />}</Card>
-        <div className="workspace-heading"><div><p className="eyebrow">Arbeidsliste</p><Heading level={2}>{taskTypeFilter === 'event' ? 'Hendelser som krever oppfølging' : 'Det som må gjøres'}</Heading><span className="calendar-caption">Bare oppgaver du har aktivert med frist eller gjentakelse vises her.</span></div><div className="filter-row"><Filter size={16} /><select value={statusFilter} onChange={(event) => preserveMainScroll(() => setStatusFilter(event.target.value as typeof statusFilter))} aria-label="Filtrer oppgaver"><option value="all">Alle statuser</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select value={visibilityFilter} onChange={(event) => preserveMainScroll(() => setVisibilityFilter(event.target.value as typeof visibilityFilter))} aria-label="Filtrer synlighet"><option value="visible">Synlige</option><option value="hidden">Skjulte</option><option value="all">Alle oppgaver</option></select><select value={taskTypeFilter} onChange={(event) => { setTaskTypeFilter(event.target.value as typeof taskTypeFilter); setEventFilter('all'); }} aria-label="Filtrer oppgavetype"><option value="all">Alle oppgavetyper</option><option value="periodic">Med fast frist</option><option value="event">Ved hendelse</option></select>{taskTypeFilter === 'event' && <select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} aria-label="Filtrer hendelse"><option value="all">Alle hendelser</option>{eventOptions.map((event) => <option key={event} value={event}>{event}</option>)}</select>}<select value={taskSort} onChange={(event) => setTaskSort(event.target.value as typeof taskSort)} aria-label="Sorter arbeidsliste"><option value="deadline">Nærmeste frist først</option><option value="status">Sorter på status</option><option value="agency">Sorter på etat</option></select><Textfield className="task-search" aria-label="Søk i arbeidslisten" placeholder="Søk i aktive oppgaver" value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} /></div></div>
+        <div className="workspace-heading"><div><p className="eyebrow">Arbeidsliste</p><Heading level={2}>{taskTypeFilter === 'event' ? 'Hendelser som krever oppfølging' : 'Det som må gjøres'}</Heading><span className="calendar-caption">Bare oppgaver du har aktivert med frist eller gjentakelse vises her.</span></div><div className="filter-row"><Filter size={16} /><select value={statusFilter} onChange={(event) => preserveMainScroll(() => setStatusFilter(event.target.value as typeof statusFilter))} aria-label="Filtrer oppgaver"><option value="all">Alle statuser</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select value={visibilityFilter} onChange={(event) => preserveMainScroll(() => setVisibilityFilter(event.target.value as typeof visibilityFilter))} aria-label="Filtrer synlighet"><option value="visible">Synlige</option><option value="muted">Dempede</option><option value="hidden">Skjulte</option><option value="all">Alle oppgaver</option></select><select value={taskTypeFilter} onChange={(event) => { setTaskTypeFilter(event.target.value as typeof taskTypeFilter); setEventFilter('all'); }} aria-label="Filtrer oppgavetype"><option value="all">Alle oppgavetyper</option><option value="periodic">Med fast frist</option><option value="event">Ved hendelse</option></select>{taskTypeFilter === 'event' && <select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} aria-label="Filtrer hendelse"><option value="all">Alle hendelser</option>{eventOptions.map((event) => <option key={event} value={event}>{event}</option>)}</select>}<select value={taskSort} onChange={(event) => setTaskSort(event.target.value as typeof taskSort)} aria-label="Sorter arbeidsliste"><option value="deadline">Nærmeste frist først</option><option value="status">Sorter på status</option><option value="agency">Sorter på etat</option></select><Textfield className="task-search" aria-label="Søk i arbeidslisten" placeholder="Søk i aktive oppgaver" value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} /></div></div>
         {filteredTaskObligations.length > 0 ? <div className="task-list">{filteredTaskObligations.map((item) => <TaskRow key={item.id} obligation={item} selected={selectedObligation?.id === item.id} onClick={() => { setSelectedObligationId(item.id); setSelectedOccurrenceDate(item.deadlineDates?.[0] ?? null); }} />)}</div> : <div className="task-empty"><strong>Ingen aktive oppgaver matcher filteret</strong><span>Velg en oppgave i katalogen ovenfor og lagre en frist eller gjentakelse for å legge den til.</span></div>}
         <button className="report-cta" onClick={() => setShowReport(true)}><div className="report-cta-icon"><Plus size={20} /></div><div><strong>Finner du en plikt som mangler?</strong><span>Meld inn et mulig krav til menneskelig gjennomgang.</span></div><ChevronRight size={20} /></button>
       </div>
       <aside className="side-column"><ChatPanel orgNumber={organization.orgNumber} sources={sources} /><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} occurrenceDate={selectedOccurrenceDate} sources={sources} onTaskChanged={onTaskChanged} /><SourcePanel sources={sources} /></aside>
     </section>
+    {selectedObligation && <MuteControl orgNumber={organization.orgNumber} obligation={selectedObligation} onTaskChanged={onTaskChanged} />}
     {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => setShowReport(false)} />}
   </>;
+}
+
+function MuteControl({ orgNumber, obligation, onTaskChanged }: { orgNumber: string; obligation: Obligation; onTaskChanged: (nextSelectedId?: string | null) => void }) {
+  const [until, setUntil] = useState('');
+  const [saving, setSaving] = useState(false);
+  const save = async (muted: boolean) => {
+    setSaving(true);
+    try {
+      await api.saveTaskPreference(orgNumber, obligation.id, { activated: Boolean(obligation.isActivated), muted, mutedUntil: muted ? until || undefined : undefined });
+      onTaskChanged();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <Card className="surface-card mute-card"><div><p className="eyebrow">Oversiktsvisning</p><strong>{obligation.isMuted ? 'Oppgaven er dempet' : 'Demp valgt oppgave'}</strong><p>{obligation.isMuted ? 'Oppgaven kan aktiveres igjen når du vil.' : 'Demping er forskjellig fra skjuling og endrer ikke den offisielle oppgaven.'}</p></div>{obligation.isMuted ? <Button variant="secondary" onClick={() => void save(false)} disabled={saving}>Aktiver igjen</Button> : <div className="mute-actions"><Textfield label="Demp til (valgfritt)" type="date" value={until} onChange={(event) => setUntil(event.target.value)} /><Button variant="secondary" onClick={() => void save(true)} disabled={saving}>Demp oppgaven</Button></div>}</Card>;
 }
 
 function YearWheel({ obligations, start, includeHidden, selectedId, selectedOccurrenceDate, onSelect }: { obligations: Obligation[]; start: Date; includeHidden: boolean; selectedId?: string; selectedOccurrenceDate?: string; onSelect: (id: string, date?: string) => void }) {
@@ -324,7 +363,7 @@ function YearWheel({ obligations, start, includeHidden, selectedId, selectedOccu
     }
     return [...buckets, { month: 'Uten fast frist', items: noDateItems }];
   }, [includeHidden, obligations, start]);
-  return <div className="year-wheel">{grouped.map(({ month, items }) => typeof month === 'string' ? <NoDatePanel key={month} items={items} selectedId={selectedId} onSelect={onSelect} /> : <div className={`month-cell ${items.length ? 'has-items' : ''}`} key={dateKey(month)}><span className="month-label">{monthName(month)} {month.getFullYear()}</span>{items.map(({ item, date }) => { const itemStatus = statusForDate(item.status, date, item.statusByDate); const displayDate = occurrenceDeadline(item, date); const state = deadlineState(itemStatus, displayDate); return <button key={`${item.id}-${date ?? 'no-date'}`} title={`${item.name} · ${formatDate(displayDate, true)}`} className={`calendar-item ${statusClass[itemStatus]} deadline-${state} ${selectedId === item.id && selectedOccurrenceDate === date ? 'is-selected' : ''}`} onClick={() => onSelect(item.id, date)}><span className="calendar-dot" />{item.name}<small>{formatDate(displayDate, true)} · {statusLabels[itemStatus]}{deadlineStateLabel(state) ? ` · ${deadlineStateLabel(state)}` : ''}</small></button>; })}</div>)}</div>;
+  return <div className="year-wheel">{grouped.map(({ month, items }) => typeof month === 'string' ? <NoDatePanel key={month} items={items} selectedId={selectedId} onSelect={onSelect} /> : <div className={`month-cell ${items.length ? 'has-items' : ''} ${isCurrentMonth(month) ? 'is-current-month' : ''}`} key={dateKey(month)}><span className="month-label">{monthName(month)} {month.getFullYear()}{isCurrentMonth(month) && <small className="current-month-label">Denne måneden</small>}</span>{items.map(({ item, date }) => { const itemStatus = itemStatusForDate(item, date); const displayDate = occurrenceDeadline(item, date); const state = deadlineState(itemStatus, displayDate, isAutomated(item)); const automated = automationLabel(item); return <button key={`${item.id}-${date ?? 'no-date'}`} title={`${item.name} · ${formatDate(displayDate, true)}`} className={`calendar-item ${statusClass[itemStatus]} deadline-${state} ${isAutomated(item) ? 'is-automated' : ''} ${item.isMuted ? 'is-muted' : ''} ${selectedId === item.id && selectedOccurrenceDate === date ? 'is-selected' : ''}`} onClick={() => onSelect(item.id, date)}><span className={`calendar-dot ${isAutomated(item) ? 'system-dot' : ''}`} />{item.name}<small>{formatDate(displayDate, true)} · {automated || statusLabels[itemStatus]}{automated && itemStatus === 'completed' ? ` · ${statusLabels[itemStatus]}` : ''}{deadlineStateLabel(state) ? ` · ${deadlineStateLabel(state)}` : ''}</small></button>; })}</div>)}</div>;
 }
 
 function NoDatePanel({ items, selectedId, onSelect }: { items: Array<{ item: Obligation; date?: string }>; selectedId?: string; onSelect: (id: string, date?: string) => void }) {
@@ -343,15 +382,16 @@ function NoDatePanel({ items, selectedId, onSelect }: { items: Array<{ item: Obl
 }
 
 function ObligationList({ obligations, selectedId, onSelect }: { obligations: Obligation[]; selectedId?: string; onSelect: (id: string, date?: string) => void }) {
-  return <div className="obligation-list">{obligations.map((item) => { const firstDate = item.deadlineDates?.[0]; const deadline = occurrenceDeadline(item, firstDate); const state = deadlineState(statusForDate(item.status, firstDate, item.statusByDate), deadline); return <button className={`list-obligation deadline-${state} ${selectedId === item.id ? 'is-selected' : ''}`} key={item.id} onClick={() => onSelect(item.id, firstDate)}><span className={`timeline-dot ${statusClass[item.status]}`} /><span><strong>{item.name}</strong><small>{item.frequency} · {deadline ? `frist ${formatDate(deadline, true)}` : 'hendelsesutløst'}{deadlineStateLabel(state) ? ` · ${deadlineStateLabel(state)}` : ''}</small></span><ChevronRight size={17} /></button>; })}</div>;
+  return <div className="obligation-list">{obligations.map((item) => { const firstDate = item.deadlineDates?.[0]; const deadline = occurrenceDeadline(item, firstDate); const itemStatus = itemStatusForDate(item, firstDate); const state = deadlineState(itemStatus, deadline, isAutomated(item)); return <button className={`list-obligation deadline-${state} ${isAutomated(item) ? 'is-automated' : ''} ${item.isMuted ? 'is-muted' : ''} ${selectedId === item.id ? 'is-selected' : ''}`} key={item.id} onClick={() => onSelect(item.id, firstDate)}><span className={`timeline-dot ${statusClass[itemStatus]} ${isAutomated(item) ? 'system-dot' : ''}`} /><span><strong>{item.name}</strong><small>{item.frequency} · {deadline ? `frist ${formatDate(deadline, true)}` : 'hendelsesutløst'}{automationLabel(item) ? ` · ${automationLabel(item)}` : ''}{deadlineStateLabel(state) ? ` · ${deadlineStateLabel(state)}` : ''}</small></span><ChevronRight size={17} /></button>; })}</div>;
 }
 
 function TaskRow({ obligation, selected, onClick }: { obligation: Obligation; selected: boolean; onClick: () => void }) {
   const firstDate = obligation.deadlineDates?.[0];
   const deadline = occurrenceDeadline(obligation, firstDate);
-  const state = deadlineState(statusForDate(obligation.status, firstDate, obligation.statusByDate), deadline);
+  const itemStatus = itemStatusForDate(obligation, firstDate);
+  const state = deadlineState(itemStatus, deadline, isAutomated(obligation));
   const hasComment = Boolean(obligation.localComment || Object.values(obligation.localCommentByDate ?? {}).some(Boolean));
-  return <button className={`task-row deadline-${state} ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[obligation.status]}`}>{isEventLike(obligation) ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} />{hasComment && <span className="local-note">Kommentar</span>}{obligation.isHidden && <span className="hidden-label"><EyeOff size={12} /> Skjult</span>}</div><span>{obligation.eventLabel || obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>{obligation.localDeadline || obligation.deadlineByDate?.[firstDate ?? ''] ? 'Lokal frist' : 'Frist'}</small><strong>{formatDate(deadline, true)}</strong>{deadlineStateLabel(state) && <span className={`deadline-label deadline-${state}`}>{deadlineStateLabel(state)}</span>}</div><div className="task-status"><span className={`status-pill ${statusClass[obligation.status]}`}>{statusLabels[obligation.status]}</span><ChevronRight size={18} /></div></button>;
+  return <button className={`task-row deadline-${state} ${isAutomated(obligation) ? 'is-automated' : ''} ${obligation.isMuted ? 'is-muted' : ''} ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[itemStatus]} ${isAutomated(obligation) ? 'system-dot' : ''}`}>{isEventLike(obligation) ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} />{hasComment && <span className="local-note">Kommentar</span>}{automationLabel(obligation) && <span className="automation-label">{automationLabel(obligation)}</span>}{obligation.isMuted && <span className="muted-label">Dempet</span>}{obligation.isHidden && <span className="hidden-label"><EyeOff size={12} /> Skjult</span>}</div><span>{obligation.eventLabel || obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>{obligation.localDeadline || obligation.deadlineByDate?.[firstDate ?? ''] ? 'Lokal frist' : 'Frist'}</small><strong>{formatDate(deadline, true)}</strong>{deadlineStateLabel(state) && <span className={`deadline-label deadline-${state}`}>{deadlineStateLabel(state)}</span>}</div><div className="task-status"><span className={`status-pill ${statusClass[itemStatus]}`}>{automationLabel(obligation) && itemStatus !== 'completed' ? automationLabel(obligation) : statusLabels[itemStatus]}</span><ChevronRight size={18} /></div></button>;
 }
 
 function ObligationDetail({ orgNumber, obligation, occurrenceDate, sources, onTaskChanged }: { orgNumber: string; obligation: Obligation | null; occurrenceDate: string | null; sources: Source[]; onTaskChanged: (nextSelectedId?: string | null) => void }) {
@@ -370,7 +410,7 @@ function ObligationDetail({ orgNumber, obligation, occurrenceDate, sources, onTa
   const selectedDate = occurrenceDate ?? obligation?.deadlineDates?.[0];
   const instanceDate = occurrenceDate ?? obligation?.localDeadline ?? obligation?.deadline ?? obligation?.deadlineDates?.[0];
   useEffect(() => {
-    setStatus(statusForDate(obligation?.status ?? 'not_started', instanceDate, obligation?.statusByDate));
+    setStatus(obligation ? itemStatusForDate(obligation, instanceDate) : 'not_started');
     setHiddenUntil('');
     setLocalDeadline(selectedDate ? obligation?.deadlineByDate?.[selectedDate] ?? obligation?.localDeadline ?? '' : obligation?.localDeadline ?? '');
     setComment(selectedDate ? obligation?.localCommentByDate?.[selectedDate] ?? obligation?.localComment ?? '' : obligation?.localComment ?? '');
