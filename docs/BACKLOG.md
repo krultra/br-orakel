@@ -1,8 +1,8 @@
 # ORaKeL backlogg – versjon 2.0
 
-Dette dokumentet er arbeidslisten for videre brukerfunksjonalitet etter
-demo-release `1.0.0`. Saksbehandlerflyt og prosess-støtte er bevisst lagt etter
-versjon 2.0.
+Dette dokumentet er arbeidslisten for versjon 2.0 etter demo-release `1.0.0`.
+Regnskapstall er bevisst utsatt til versjon 3.0. Saksbehandlerflyt og
+prosess-støtte ligger fortsatt etter versjon 2.0.
 
 ## Produktbeslutninger
 
@@ -113,8 +113,8 @@ forstår samtidig hvorfor statusen er ferdig eller automatisk håndtert.
 - [x] Utvide kontekstkontrakten for losen med virksomhetsprofilen.
 - [x] Legge til tilgjengelige årsregnskapsår fra Enhetsregisteret uten å sende
   store datasett ukritisk til modellen.
-- [ ] Vurdere rad-/kolonnebasert uthenting av faktiske regnskapstall fra
-  DuckDB/Parquet når et konkret demoscenario er valgt.
+- [ ] **Utsatt til v3.0:** Vurdere rad-/kolonnebasert uthenting av faktiske
+  regnskapstall fra DuckDB/Parquet når et konkret demoscenario er valgt.
 
 **Akseptanse:** Losen kan forklare hvilke virksomhetsdata den faktisk har
 brukt. Offisielle og brukerdefinerte felt kan ikke forveksles i UI eller
@@ -222,6 +222,8 @@ bekreftet oppgave.
 
 ### Etter versjon 2.0
 
+- [ ] **v3.0:** Regnskapsadapter med virksomhetsoppslag, tilgjengelige år og
+  utvalgte regnskapstall fra godkjent datakilde.
 - [ ] Saksbehandlerportal med kø, etatsfilter, moderering og revisjonslogg.
 - [ ] Etatsspesifikke moderatorroller.
 - [ ] Prosess-støtte for utvalgte komplekse rapporteringer.
