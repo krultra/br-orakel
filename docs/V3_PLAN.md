@@ -210,6 +210,48 @@ ORaKeL faktisk har tilgang til virksomhetens lønns- eller regnskapssystem.
 Dette kan demonstreres uten å hente beskyttede data: ORaKeL viser hva som kan
 gjenbrukes, hva som faktisk er tilgjengelig og hva som mangler av tilgang.
 
+### P1 – Støtteregisteret som virksomhetskontekst
+
+Støtteregisteret tas inn i v3.0 som et eget, ikke-juridisk datasporet. Det kan
+gi brukeren oversikt over registrerte støttetildelinger og støtteordninger som
+er knyttet til virksomheten, og kan gi losen bedre kontekst når brukeren spør
+om offentlig støtte, bagatellmessig støtte eller tidligere tildelinger.
+
+Dette skal ikke fremstilles som en rapporteringsplikt, en garanti for at
+virksomheten har krav på støtte eller en komplett oversikt over alle ordninger.
+Hvert treff må vise kilde, tildelingsdato, beløp når det er publisert og
+eventuelt dekningsforbehold.
+
+#### Teknisk avklaring
+
+Det offentlige søkegrensesnittet på [stotte.brreg.no](https://stotte.brreg.no/)
+lar brukeren søke på støttetildeling eller støtteordning, blant annet på
+støttemottakers organisasjonsnummer, og laste ned JSON/CSV for søkeresultatet.
+Det er egnet som første demonstrasjonskilde, men resultatet er begrenset til de
+første 1000 treffene.
+
+En maskin-til-maskin-løsning er omtalt i offentlig veiledning, men må etter det
+som er tilgjengelig nå utarbeides i samarbeid med Brønnøysundregistrene. Vi
+skal derfor ikke bygge v3.0 på en uavklart eller tilgangsbegrenset API-kontrakt.
+Adapteren skal isolere transport og mapping slik at en eventuell offisiell
+API-tilgang kan kobles inn senere.
+
+#### Første funksjonelle omfang
+
+- [ ] Lage `SupportRegistryAdapter` med mockdata og et provider-uavhengig
+  søkekontrakt.
+- [ ] Søke selektivt på organisasjonsnummer og vise støttegiver,
+  støttetiltaksnummer, ordning, dato, beløp, støtteinstrument og rettslig
+  grunnlag når feltene finnes.
+- [ ] Vise støtteinformasjonen i en egen virksomhetsprofilseksjon og som
+  begrenset, strukturert kontekst til losen ved relevante spørsmål.
+- [ ] Merke treffene som register-/veiledningsinformasjon og beholde skillet
+  mellom offisielle registerdata, brukerinput og KI-forslag.
+- [ ] Ha en full mock-reise for en virksomhet med én eller flere tildelinger,
+  også når online-kilden ikke er tilgjengelig.
+- [ ] Avklare med BR om det finnes en støttet API-kontrakt og hvilke
+  bruksbegrensninger som gjelder før live-integrasjon låses.
+
 ### P1 – Regnskapsdata
 
 Regnskapsadapteren er allerede utsatt til v3.0 i v2-backloggen. Den bør være

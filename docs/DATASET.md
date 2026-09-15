@@ -41,7 +41,8 @@ Ikke hentet lokalt:
 - `dim_notepost.parquet` og `dim_revisjonsinfo.parquet`: kan bli relevante for
   årsregnskap, men er ikke nødvendige for virksomhetssøk eller første demo.
 - Støtteregisterets CSV/JSON-filer: interessante for en egen støtteordnings-
-  eller rapporteringskontekst, men ikke en direkte kilde til Oppgaveregisteret.
+  eller virksomhetskontekst, men ikke en direkte kilde til Oppgaveregisteret.
+  Disse er ikke hentet eller analysert lokalt i denne leveransen.
 
 ## Analyse av `dim_virksomhet`
 
@@ -112,9 +113,11 @@ filer lokalt.
 ## Neste anbefalte steg
 
 1. Avklar med Marit hvilke felt fra Støtteregisteret som skal regnes som
-   godkjente kilder for losen.
-2. Legg inn en egen, eksplisitt datakilde for arbeidsgiveransvar eller behold
+   godkjente kilder for losen, og om tildelinger skal vises i virksomhetsprofilen.
+2. Avklar med Brønnøysundregistrene om offentlig søk/JSON/CSV er ment for
+   maskinell bruk, eller om v3.0 må bruke en egen maskin-til-maskin-avtale.
+3. Legg inn en egen, eksplisitt datakilde for arbeidsgiveransvar eller behold
    live Enhetsregisteret når Oppgaveregisteret skal filtreres strengt.
-3. Når det finnes et konkret scenario, hent bare nødvendige kolonner/rader fra
+4. Når det finnes et konkret scenario, hent bare nødvendige kolonner/rader fra
    regnskapsfilene til et lokalt DuckDB-uttrekk; ikke legg originalfilene i
    container eller Git.
