@@ -72,7 +72,8 @@ test('Oppgaveregisteret-adapteren sender virksomhetsfiltre og mapper offisiell o
 test('adapteren merker eksplisitt systeminnsending for automatisk statusregel', async () => {
   const adapter = new OppgaveregisteretAdapter({
     fetcher: async () => jsonResponse({ start: 0, antall: 1, maxAntall: 160, skjema: [rawForm({
-      rapporteringsformer: [{ kode: 'SYSTEM', verdi: 'A-melding innsendelse fra system' }],
+      navn: 'A-Melding innsendelse fra system',
+      rapporteringsformer: [{ kode: 'NAERING_STAT', verdi: 'næring' }],
     })] }),
   });
 

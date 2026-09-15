@@ -40,11 +40,13 @@ const nestedText = (value: unknown, key: string): string | undefined => isRecord
 
 const categoryValues = (value: unknown): string[] => records(value).flatMap((item) => [text(item.verdi), text(item.kode)]).filter((value): value is string => Boolean(value));
 
-const submissionMetadata = (reportingForms: string[]): Pick<Obligation, 'submissionMode' | 'completionSource' | 'automaticCompletionPolicy'> => {
-  const normalized = reportingForms.join(' ').toLocaleLowerCase('nb-NO');
-  // "Elektronisk" alone is deliberately not enough: a person can submit
-  // electronically. Only explicit system/integration wording activates the
-  // demo rule for automatic completion after the deadline.
+const submissionMetadata = (name: string, reportingForms: string[]): Pick<Obligation, 'submissionMode' | 'completionSource' | 'automaticCompletionPolicy'> => {
+  const normalized = [name, ...reportingForms].join(' ').toLocaleLowerCase('nb-NO');
+  // A system submission may be encoded in the obligation name (as for
+  // "A-Melding innsendelse fra system") or in a reporting-form value. A
+  // generic value such as "Elektronisk" is deliberately not enough: a person
+  // can submit electronically. Only explicit system/integration wording
+  // activates the demo rule for automatic completion after the deadline.
   const isSystemSubmission = [
     /innsendelse\s+fra\s+system/,
     /systeminnsending/,
@@ -111,7 +113,7 @@ function mapObligation(raw: JsonRecord): Obligation | null {
   const eventUsage = usage.find((item) => text(item.navn)?.toLowerCase().includes('hendelsesrapportering'));
   const eventLabel = nestedText(eventUsage?.hendelseskategori, 'navn');
   const reportingForms = categoryValues(raw.rapporteringsformer);
-  const submission = submissionMetadata(reportingForms);
+  const submission = submissionMetadata(name, reportingForms);
   const knownDeadlineDates = deadlineDates(usage);
   const description = unique([purpose, ...usage.map((item) => text(item.kommentar))]).join(' ');
   const officialStatus: TrustLevel = text(raw.statustype)?.toUpperCase() === 'PUBLISERT' ? 'OFFICIAL' : 'UNDER_REVIEW';
