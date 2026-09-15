@@ -136,7 +136,7 @@ export class DatasetSupportRegistryAdapter implements SupportRegistryAdapter {
       sourceUrl: SUPPORT_REGISTRY_SOURCE_URL,
       sourceType: 'dataset',
       retrievedAt: new Date().toISOString(),
-      coverageNote: 'Registeruttrekket viser registrerte støttetildelinger i datasettet. Det er ikke en komplett oversikt over hvilke støtteordninger virksomheten kan søke på.',
+      coverageNote: 'Registeruttrekket viser registrerte støttetildelinger med publisert tildelings-/mottaksdato. Fravær av et år betyr ikke nødvendigvis at virksomheten ikke mottok støtte, og uttrekket er ikke en komplett oversikt over hvilke støtteordninger virksomheten kan søke på.',
     };
   }
 
@@ -161,7 +161,7 @@ const mockAwards: SupportAward[] = [
 
 export class MockSupportRegistryAdapter implements SupportRegistryAdapter {
   async listForOrganization(orgNumber: string): Promise<SupportRegistryResult> {
-    return { organizationNumber: orgNumber, awards: mockAwards.filter((award) => award.organizationNumber === orgNumber).map((award) => structuredClone(award)), sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'mock', retrievedAt: new Date().toISOString(), coverageNote: 'Dette er mockdata for demo. Registerinformasjon må kontrolleres i den offisielle kilden.' };
+    return { organizationNumber: orgNumber, awards: mockAwards.filter((award) => award.organizationNumber === orgNumber).map((award) => structuredClone(award)), sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'mock', retrievedAt: new Date().toISOString(), coverageNote: 'Dette er mockdata for demo. Datoene er eksempler på tildelings-/mottaksdatoer og må kontrolleres i den offisielle kilden.' };
   }
 }
 

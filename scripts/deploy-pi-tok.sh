@@ -11,7 +11,7 @@ build_number="${ORAKEL_BUILD_NUMBER:-$(node --import tsx scripts/next-build-numb
 demo_release="${ORAKEL_DEMO_RELEASE:-0}"
 version="${ORAKEL_VERSION:-}"
 environment_name="$target"
-default_version="2.${demo_release}.${build_number}"
+default_version="3.${demo_release}.${build_number}"
 container_name="br-orakel-test-br-orakel-test-1"
 backup_timestamp="$(date +%Y%m%d-%H%M%S)"
 
@@ -28,6 +28,9 @@ git archive --format=tar HEAD \
   | ssh "$remote_host" "mkdir -p '$remote_dir' && if docker container inspect '$container_name' >/dev/null 2>&1; then mkdir -p '$remote_dir/backups' && if docker cp '$container_name:/app/data/runtime/demo-store.json' '$remote_dir/backups/demo-store-$target-$backup_timestamp.json'; then echo 'br-orakel: tok backup av $target-store er opprettet.'; else echo 'ADVARSEL: klarte ikke å ta backup av $target-store.' >&2; fi; else echo 'INFO: ingen eksisterende $target-container å ta store-backup fra.'; fi && tar -xf - -C '$remote_dir'"
 
 if [[ "$target" == "demo" ]]; then
+  # Raw hackathon data is intentionally outside Git and the image. Reuse the
+  # already mounted test copy for the isolated demo stack when available.
+  ssh "$remote_host" "if [ -d '$remote_dir/data-test/raw' ]; then mkdir -p '$remote_dir/data/raw' && cp -a '$remote_dir/data-test/raw/.' '$remote_dir/data/raw/'; echo 'br-orakel: synkroniserte rådata til demo.'; else echo 'INFO: ingen data-test/raw på pi-tok; demo bruker mock/fallback-data.'; fi"
   ssh "$remote_host" "cd '$remote_dir' && ORAKEL_VERSION='$version' ORAKEL_DEMO_RELEASE='$demo_release' ORAKEL_BUILD_NUMBER='$build_number' ORAKEL_ENVIRONMENT='$environment_name' BR_ORAKEL_HOST_PORT=3010 docker compose -p br-orakel-demo -f docker-compose.yml up --build -d"
   if [[ -n "$version" ]]; then
     echo "br-orakel demo er bygget og startet på $remote_host (localhost:3010), versjon $version."
