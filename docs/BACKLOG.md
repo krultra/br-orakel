@@ -111,8 +111,10 @@ forstår samtidig hvorfor statusen er ferdig eller automatisk håndtert.
 - [x] La brukeren legge til egne opplysninger som `USER_INPUT`.
 - [x] Etablere feltstatus: `OFFICIAL`, `USER_INPUT`, `USER_SUGGESTION`, `UNKNOWN`.
 - [x] Utvide kontekstkontrakten for losen med virksomhetsprofilen.
-- [ ] Legge til relevante åpne regnskaps- og økonomidata uten å sende store
-  datasett ukritisk til modellen.
+- [x] Legge til tilgjengelige årsregnskapsår fra Enhetsregisteret uten å sende
+  store datasett ukritisk til modellen.
+- [ ] Vurdere rad-/kolonnebasert uthenting av faktiske regnskapstall fra
+  DuckDB/Parquet når et konkret demoscenario er valgt.
 
 **Akseptanse:** Losen kan forklare hvilke virksomhetsdata den faktisk har
 brukt. Offisielle og brukerdefinerte felt kan ikke forveksles i UI eller

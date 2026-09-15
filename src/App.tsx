@@ -334,6 +334,7 @@ function OrganizationProfileDialog({ organization, profile, sources, onClose, on
     ['Næringskoder', organization.industryCodes.length ? organization.industryCodes.join(', ') : 'Ikke oppgitt'],
     ['Kommune', organization.municipality || 'Ikke oppgitt'],
     ['Ansatte/arbeidsgiver', organization.hasEmployees === undefined ? 'Ikke oppgitt' : organization.hasEmployees ? `Ja${organization.employeeCount === undefined ? '' : ` · ${organization.employeeCount} registrert`}` : 'Nei'],
+    ['Innsendte årsregnskap', organization.submittedAnnualAccountYears?.length ? organization.submittedAnnualAccountYears.join(', ') : 'Ikke oppgitt'],
     ['MVA-registeret', organization.registeredInMvaRegister === undefined ? 'Ikke oppgitt' : organization.registeredInMvaRegister ? 'Registrert' : 'Ikke registrert'],
     ['Foretaksregisteret', organization.registeredInForetaksregister === undefined ? 'Ikke oppgitt' : organization.registeredInForetaksregister ? 'Registrert' : 'Ikke registrert'],
     ['Registrert fra', organization.registrationDate ? formatDate(organization.registrationDate, true) : 'Ikke oppgitt'],
@@ -467,7 +468,7 @@ function OrganizationMuteControl({ orgNumber, mutedBefore, onChanged }: { orgNum
       setSaving(false);
     }
   };
-  return <Card className="surface-card mute-card organization-mute-card"><div><p className="eyebrow">Virksomhetsvisning</p><strong>Demp historikk for alle oppgaver</strong><p>Forekomster før valgt dato vises grå i årshjulet og listen. Dette endrer ikke offisielle opplysninger, status eller skjuling.</p>{mutedBefore && <p>Aktiv grense: {formatDate(mutedBefore, true)}</p>}</div><div className="mute-actions"><DateField label="Demp forekomster før" value={cutoff} onChange={setCutoff} /><Button variant="secondary" onClick={() => void save(cutoff || undefined)} disabled={saving || !cutoff}>{saving ? 'Lagrer…' : 'Demp all historikk'}</Button>{mutedBefore && <Button variant="secondary" onClick={() => { setCutoff(''); void save(undefined); }} disabled={saving}>Vis all historikk</Button>}</div></Card>;
+  return <Card className="surface-card mute-card organization-mute-card"><div><p className="eyebrow">Virksomhetsvisning</p><strong>Demp forekomster før valgt dato</strong><p>Forekomster før valgt dato vises grå i årshjulet og listen. Dette endrer ikke offisielle opplysninger, status eller skjuling.</p>{mutedBefore && <p>Aktiv grense: forekomster før {formatDate(mutedBefore, true)}</p>}</div><div className="mute-actions"><DateField label="Demp forekomster før" value={cutoff} onChange={setCutoff} /><Button variant="secondary" onClick={() => void save(cutoff || undefined)} disabled={saving || !cutoff}>{saving ? 'Lagrer…' : 'Demp forekomster før dato'}</Button>{mutedBefore && <Button variant="secondary" onClick={() => { setCutoff(''); void save(undefined); }} disabled={saving}>Vis dempede forekomster igjen</Button>}</div></Card>;
 }
 
 function MuteControl({ orgNumber, obligation, onTaskChanged }: { orgNumber: string; obligation: Obligation; onTaskChanged: (nextSelectedId?: string | null) => void }) {

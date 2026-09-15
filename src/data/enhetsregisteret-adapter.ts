@@ -32,6 +32,11 @@ const nestedText = (value: unknown, key: string): string | undefined => isRecord
 
 const unique = (values: Array<string | undefined>): string[] => [...new Set(values.filter((value): value is string => Boolean(value)))];
 
+const yearValues = (value: unknown): number[] => [...new Set((Array.isArray(value) ? value : [value])
+  .map(text)
+  .filter((item): item is string => Boolean(item && /^\d{4}$/.test(item)))
+  .map(Number))].sort((left, right) => right - left);
+
 const normalizeOrgNumber = (value: string): string => value.replace(/\s/g, '');
 
 const embeddedRecords = (value: unknown): JsonRecord[] => {
@@ -67,6 +72,7 @@ function mapOrganization(raw: JsonRecord): Organization {
     ]),
     hasEmployees: employeeCount !== undefined ? employeeCount > 0 : false,
     employeeCount,
+    submittedAnnualAccountYears: yearValues(raw.sisteInnsendteAarsregnskap),
     registeredInMvaRegister: typeof raw.registrertIMvaregisteret === 'boolean' ? raw.registrertIMvaregisteret : undefined,
     registeredInForetaksregister: typeof raw.registrertIForetaksregisteret === 'boolean' ? raw.registrertIForetaksregisteret : undefined,
     municipality,

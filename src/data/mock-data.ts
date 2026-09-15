@@ -9,6 +9,7 @@ export const mockOrganization: Organization = {
   industryCodes: ['47.110', '56.101'],
   hasEmployees: true,
   employeeCount: 8,
+  submittedAnnualAccountYears: [2025, 2024, 2023],
   registeredInMvaRegister: true,
   registeredInForetaksregister: true,
   municipality: 'Trondheim',

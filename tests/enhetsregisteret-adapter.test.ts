@@ -15,6 +15,7 @@ const rawOrganization = {
   registrertIForetaksregisteret: true,
   registreringsdatoEnhetsregisteret: '2019-03-12',
   antallAnsatte: 8,
+  sisteInnsendteAarsregnskap: ['2025', '2024', '2025'],
   overordnetEnhet: '987654321',
   forretningsadresse: { kommune: 'Trondheim', kommunenummer: '5001' },
   postadresse: { kommune: 'Trondheim', kommunenummer: '5001' },
@@ -41,6 +42,7 @@ test('Enhetsregisteret-adapteren slår opp og normaliserer grunnlag for oppgaver
   assert.deepEqual(organization.industryCodes, ['47.110', '56.101']);
   assert.equal(organization.hasEmployees, true);
   assert.equal(organization.employeeCount, 8);
+  assert.deepEqual(organization.submittedAnnualAccountYears, [2025, 2024]);
   assert.equal(organization.registeredInMvaRegister, true);
   assert.equal(organization.registeredInForetaksregister, true);
   assert.equal(organization.municipality, 'Trondheim');

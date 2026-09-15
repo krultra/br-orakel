@@ -8,6 +8,9 @@ opplysninger brukeren selv legger inn.
 `Organization` kommer fra valgt organisasjonsadapter, normalt
 Enhetsregisteret. Profilen viser organisasjonsnummer, navn, organisasjonsform,
 næringskoder, kommune, registerstatus og tilgjengelig ansattinformasjon.
+Når Enhetsregisteret publiserer `sisteInnsendteAarsregnskap`, viser profilen
+også hvilke regnskapsår som er tilgjengelige. Dette er kun metadata om at et
+årsregnskap kan hentes, ikke selve regnskapstallene.
 Kilde-ID-er kobles mot `Source` for å vise lenke og tidspunkt for siste hentede
 grunnlag.
 

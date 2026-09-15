@@ -118,6 +118,8 @@ export interface Organization {
   /** Undefined means the selected source does not publish an employee indicator. */
   hasEmployees?: boolean;
   employeeCount?: number;
+  /** Years for which the public Register of Annual Accounts exposes a filing. */
+  submittedAnnualAccountYears?: number[];
   registeredInMvaRegister?: boolean;
   registeredInForetaksregister?: boolean;
   municipality: string;
