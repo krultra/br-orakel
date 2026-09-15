@@ -252,6 +252,7 @@ export interface UserReportedRequirement {
   reviewedAt?: string;
   reviewNote?: string;
   reviewHistory?: RequirementReviewEvent[];
+  dispatches?: RequirementDispatch[];
   createdAt: string;
   updatedAt: string;
 }
@@ -264,6 +265,19 @@ export interface RequirementReviewEvent {
   reviewedBy: string;
   reviewedByName: string;
   note: string;
+  createdAt: string;
+}
+
+export type RequirementDispatchStatus = 'queued' | 'delivered' | 'failed';
+
+export interface RequirementDispatch {
+  id: string;
+  targetAgency: string;
+  targetCaseworker?: string;
+  message: string;
+  status: RequirementDispatchStatus;
+  dispatchedBy: string;
+  dispatchedByName: string;
   createdAt: string;
 }
 

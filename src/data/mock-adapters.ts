@@ -91,6 +91,35 @@ export class MockRequirementAdapter implements RequirementAdapter {
     }
     return structuredClone(report);
   }
+
+  async dispatch(id: string, input: { targetAgency: string; targetCaseworker?: string; message: string; dispatchedBy: string; dispatchedByName: string }): Promise<UserReportedRequirement | null> {
+    const report = this.reports.find((item) => item.id === id);
+    if (!report) return null;
+    const createdAt = new Date().toISOString();
+    report.dispatches = [...(report.dispatches ?? []), {
+      id: `dispatch-${report.id}-${(report.dispatches?.length ?? 0) + 1}`,
+      ...input,
+      status: 'queued',
+      createdAt,
+    }];
+    if (report.reviewStatus === 'new' || report.reviewStatus === 'needs_more_info') {
+      report.reviewStatus = 'forwarded';
+      report.reviewedBy = input.dispatchedBy;
+      report.reviewedByName = input.dispatchedByName;
+      report.reviewedAt = createdAt;
+      report.reviewNote = `Sendt til ${input.targetAgency}. ${input.message}`;
+      report.reviewHistory = [...(report.reviewHistory ?? []), {
+        id: `review-${report.id}-${(report.reviewHistory?.length ?? 0) + 1}`,
+        status: 'forwarded',
+        reviewedBy: input.dispatchedBy,
+        reviewedByName: input.dispatchedByName,
+        note: report.reviewNote,
+        createdAt,
+      }];
+    }
+    report.updatedAt = createdAt;
+    return structuredClone(report);
+  }
 }
 
 export class MockChatAdapter implements ChatAdapter {

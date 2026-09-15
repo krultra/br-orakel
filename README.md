@@ -49,7 +49,9 @@ forhåndsopprettet i den lokale demo-instansen:
 
 Virksomhetsbrukere kan søke opp virksomheter og lagre dem i «Mine
 virksomheter». Brukerdata lagres lokalt i `data/runtime/` og skal ikke legges i
-Git.
+Git. Innsendte rapporteringsforslag, saksbehandlervurderinger og
+videresendinger lagres i den samme demo-storen. Ved flere serverprosesser må
+de konfigureres med samme `DEMO_STORE_PATH` for å bruke en felles kø.
 
 ### Versjonering
 

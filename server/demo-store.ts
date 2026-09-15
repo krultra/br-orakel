@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { ChatExchange, ChatFeedback, ChatShareProposal, ContributionEvent, ContributionEventType, ContributionSummary, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, ProductFeedback, TaskPreference, UserRole } from '../src/domain/types.js';
+import type { ChatExchange, ChatFeedback, ChatShareProposal, ContributionEvent, ContributionEventType, ContributionSummary, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, ProductFeedback, RequirementDispatch, RequirementReviewEvent, TaskPreference, UserReportedRequirement, UserRole } from '../src/domain/types.js';
 
 interface StoredUser extends DemoUser {
   passwordHash: string;
@@ -9,6 +9,7 @@ interface StoredUser extends DemoUser {
 
 interface StoreFile {
   users: StoredUser[];
+  reportedRequirements: UserReportedRequirement[];
   taskPreferences: TaskPreference[];
   organizationViewPreferences: OrganizationViewPreference[];
   organizationProfiles: OrganizationProfile[];
@@ -17,7 +18,7 @@ interface StoreFile {
   productFeedback: ProductFeedback[];
 }
 
-const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [], contributionEvents: [], productFeedback: [] });
+const emptyStore = (): StoreFile => ({ users: [], reportedRequirements: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [], contributionEvents: [], productFeedback: [] });
 
 const seededCaseworkers = () => [
   {
@@ -54,6 +55,7 @@ export class DemoStore {
   async init(): Promise<void> {
     try {
       this.data = JSON.parse(await readFile(this.filePath, 'utf8')) as StoreFile;
+      this.data.reportedRequirements ??= [];
       this.data.organizationViewPreferences ??= [];
       this.data.organizationProfiles ??= [];
       this.data.chatExchanges ??= [];
@@ -152,6 +154,76 @@ export class DemoStore {
     user.organizationNumbers = user.organizationNumbers.filter((item) => item !== orgNumber);
     await this.persist();
     return this.publicUser(user);
+  }
+
+  reportedRequirements(): UserReportedRequirement[] {
+    return structuredClone(this.data.reportedRequirements);
+  }
+
+  async seedReportedRequirements(reports: UserReportedRequirement[]): Promise<void> {
+    if (this.data.reportedRequirements.length > 0) return;
+    this.data.reportedRequirements = structuredClone(reports);
+    await this.persist();
+  }
+
+  async createReportedRequirement(input: Omit<UserReportedRequirement, 'id' | 'createdAt' | 'updatedAt'>): Promise<UserReportedRequirement> {
+    const now = new Date().toISOString();
+    const report: UserReportedRequirement = { ...input, id: randomUUID(), createdAt: now, updatedAt: now };
+    this.data.reportedRequirements = [report, ...this.data.reportedRequirements];
+    await this.persist();
+    return structuredClone(report);
+  }
+
+  async updateReportedRequirement(id: string, reviewStatus: UserReportedRequirement['reviewStatus'], review?: { reviewedBy: string; reviewedByName: string; note: string }): Promise<UserReportedRequirement | null> {
+    const report = this.data.reportedRequirements.find((item) => item.id === id);
+    if (!report) return null;
+    const updatedAt = new Date().toISOString();
+    report.reviewStatus = reviewStatus;
+    report.updatedAt = updatedAt;
+    if (review) {
+      report.reviewedBy = review.reviewedBy;
+      report.reviewedByName = review.reviewedByName;
+      report.reviewedAt = updatedAt;
+      report.reviewNote = review.note;
+      const event: RequirementReviewEvent = {
+        id: randomUUID(),
+        status: reviewStatus,
+        reviewedBy: review.reviewedBy,
+        reviewedByName: review.reviewedByName,
+        note: review.note,
+        createdAt: updatedAt,
+      };
+      report.reviewHistory = [...(report.reviewHistory ?? []), event];
+    }
+    await this.persist();
+    return structuredClone(report);
+  }
+
+  async dispatchReportedRequirement(id: string, input: { targetAgency: string; targetCaseworker?: string; message: string; dispatchedBy: string; dispatchedByName: string }): Promise<UserReportedRequirement | null> {
+    const report = this.data.reportedRequirements.find((item) => item.id === id);
+    if (!report) return null;
+    const createdAt = new Date().toISOString();
+    const dispatch: RequirementDispatch = { id: randomUUID(), ...input, status: 'queued', createdAt };
+    report.dispatches = [...(report.dispatches ?? []), dispatch];
+    if (report.reviewStatus === 'new' || report.reviewStatus === 'needs_more_info') {
+      report.reviewStatus = 'forwarded';
+      report.reviewedBy = input.dispatchedBy;
+      report.reviewedByName = input.dispatchedByName;
+      report.reviewedAt = createdAt;
+      report.reviewNote = `Sendt til ${input.targetAgency}. ${input.message}`;
+      const event: RequirementReviewEvent = {
+        id: randomUUID(),
+        status: 'forwarded',
+        reviewedBy: input.dispatchedBy,
+        reviewedByName: input.dispatchedByName,
+        note: report.reviewNote,
+        createdAt,
+      };
+      report.reviewHistory = [...(report.reviewHistory ?? []), event];
+    }
+    report.updatedAt = createdAt;
+    await this.persist();
+    return structuredClone(report);
   }
 
   preferences(userId: string, orgNumber: string): TaskPreference[] {

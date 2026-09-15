@@ -38,6 +38,7 @@ export interface RequirementAdapter {
   list(): Promise<UserReportedRequirement[]>;
   create(input: Omit<UserReportedRequirement, 'id' | 'createdAt' | 'updatedAt'>): Promise<UserReportedRequirement>;
   updateStatus(id: string, reviewStatus: UserReportedRequirement['reviewStatus'], review?: { reviewedBy: string; reviewedByName: string; note: string }): Promise<UserReportedRequirement | null>;
+  dispatch(id: string, input: { targetAgency: string; targetCaseworker?: string; message: string; dispatchedBy: string; dispatchedByName: string }): Promise<UserReportedRequirement | null>;
 }
 
 /**

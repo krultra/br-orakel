@@ -32,4 +32,6 @@ test('brukerinnspill får egen status og kan oppdateres', async () => {
   assert.equal(updated?.reviewStatus, 'needs_more_info');
   assert.equal(updated?.reviewedByName, 'Saksbehandler');
   assert.equal(updated?.reviewHistory?.[0]?.note, 'Trenger dokumentasjon på hvem som har sendt forespørselen.');
+  const dispatched = await adapter.dispatch(created.id, { targetAgency: 'Mattilsynet', message: 'Vurder om dette hører hjemme hos dere.', dispatchedBy: 'cw-1', dispatchedByName: 'Saksbehandler' });
+  assert.equal(dispatched?.dispatches?.[0]?.status, 'queued');
 });
