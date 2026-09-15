@@ -193,7 +193,7 @@ function App() {
     setLoading(true);
     try {
       const [nextOrg, nextObligations, nextSources, nextReports, nextViewPreference, nextProfile] = await Promise.all([api.organization(number), api.obligations(number), api.sources('', number), api.reports(), api.organizationViewPreference(number), api.organizationProfile(number)]);
-      setOrganization(nextOrg); setOrganizationProfile(nextProfile); setOrganizationMutedBefore(nextViewPreference.mutedBefore ?? ''); setObligations(nextObligations); setSources(nextSources); setReports(nextReports); setSelectedObligationId((current) => preserveSelection ? (current && nextObligations.some((item) => item.id === current) ? current : current === null ? null : nextObligations[0]?.id ?? null) : nextObligations[0]?.id ?? null); setOrganizationSearchResults([]); setToast('Virksomhetsoversikten er oppdatert.');
+      setOrganization(nextOrg); setOrganizationProfile(nextProfile); setOrganizationMutedBefore(nextViewPreference.mutedBefore ?? ''); setObligations(nextObligations); setSources(nextSources); setReports(nextReports); setSelectedObligationId((current) => preserveSelection ? (current && nextObligations.some((item) => item.id === current) ? current : null) : null); if (!preserveSelection) setSelectedOccurrenceDate(null); setOrganizationSearchResults([]); setToast('Virksomhetsoversikten er oppdatert.');
     } catch (error) { setOrganization(null); setOrganizationProfile(null); setOrganizationMutedBefore(''); setToast(error instanceof Error ? error.message : 'Kunne ikke laste virksomheten.'); }
     finally { setLoading(false); }
   };
