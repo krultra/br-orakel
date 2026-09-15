@@ -52,6 +52,39 @@ test('DemoStore seed-er to saksbehandlerbrukere', async () => {
   }
 });
 
+test('DemoStore lagrer innspill, vurderinger og videresendinger mellom instanser', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'br-orakel-requirements-'));
+  try {
+    const storePath = path.join(directory, 'demo-store.json');
+    const store = new DemoStore(storePath);
+    await store.init();
+    const created = await store.createReportedRequirement({
+      title: 'Rapporter lokal ordning',
+      description: 'Virksomheten får en årlig forespørsel som bør avklares.',
+      reportedBy: 'Torgeir',
+      evidenceLinks: ['https://example.org/request'],
+      aiSuggestions: ['Kontroller avsender og hjemmel.'],
+      confidence: 0.42,
+      reviewStatus: 'new',
+    });
+
+    const reloaded = new DemoStore(storePath);
+    await reloaded.init();
+    assert.equal(reloaded.reportedRequirements().find((item) => item.id === created.id)?.reportedBy, 'Torgeir');
+    await reloaded.updateReportedRequirement(created.id, 'needs_more_info', { reviewedBy: 'cw-1', reviewedByName: 'BR Saksbehandler', note: 'Avklar hvem som har sendt forespørselen.' });
+    await reloaded.dispatchReportedRequirement(created.id, { targetAgency: 'Mattilsynet', targetCaseworker: 'Mottakskø mat', message: 'Vurder om dette er en offentlig plikt.', dispatchedBy: 'cw-1', dispatchedByName: 'BR Saksbehandler' });
+
+    const afterDispatch = new DemoStore(storePath);
+    await afterDispatch.init();
+    const persisted = afterDispatch.reportedRequirements().find((item) => item.id === created.id);
+    assert.equal(persisted?.reviewStatus, 'forwarded');
+    assert.equal(persisted?.reviewHistory?.length, 2);
+    assert.equal(persisted?.dispatches?.[0]?.targetAgency, 'Mattilsynet');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('DemoStore kan aktivere alle dempede oppgaver for én virksomhet', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'br-orakel-bulk-'));
   try {

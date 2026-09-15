@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
-import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
+import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
 import { EnhetsregisteretAdapter, EnhetsregisteretError } from '../src/data/enhetsregisteret-adapter.js';
 import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/data/dataset-organization-adapter.js';
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
@@ -15,6 +15,7 @@ import type { ChatShareProposal, DemoUser, Obligation, OrganizationViewPreferenc
 import { aggregateRecurringStatus } from '../src/domain/task-status.js';
 import { redactCommunityText } from '../src/domain/community-content.js';
 import { DemoStore } from './demo-store.js';
+import { DemoRequirementAdapter } from './demo-requirement-adapter.js';
 
 const app = Fastify({ logger: true });
 const demoStore = new DemoStore(process.env.DEMO_STORE_PATH);
@@ -44,7 +45,8 @@ const sourceRetriever = new AuthorizedSourceRetriever({
   maxBytesPerSource: Number(process.env.SOURCE_RETRIEVAL_MAX_BYTES ?? 500000),
   maxCharsPerSource: Number(process.env.SOURCE_RETRIEVAL_MAX_CHARS ?? 8000),
 });
-const requirements = new MockRequirementAdapter();
+const requirements = new DemoRequirementAdapter(demoStore);
+await requirements.init();
 const aiProvider = process.env.AI_PROVIDER ?? 'mock';
 const chat = aiProvider === 'openai'
   ? new OpenAIChatAdapter({
@@ -472,6 +474,21 @@ app.patch('/api/reported-requirements/:id', async (request, reply) => {
   if (typeof reviewStatus !== 'string' || !allowed.includes(reviewStatus)) return reply.code(400).send({ message: 'Ugyldig status.' });
   if (typeof note !== 'string' || note.trim().length < 3) return reply.code(400).send({ message: 'Skriv en kort begrunnelse for statusendringen.' });
   const updated = await requirements.updateStatus(id, reviewStatus as any, { reviewedBy: user.id, reviewedByName: user.displayName, note: note.trim().slice(0, 2000) });
+  return updated ? updated : reply.code(404).send({ message: 'Innspillet finnes ikke.' });
+});
+
+app.post('/api/reported-requirements/:id/dispatch', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn for å sende et innspill videre.' });
+  if (user.role !== 'caseworker') return reply.code(403).send({ message: 'Bare saksbehandlere kan sende innspill videre.' });
+  const { id } = request.params as { id: string };
+  const body = request.body as { targetAgency?: unknown; targetCaseworker?: unknown; message?: unknown };
+  const targetAgency = typeof body?.targetAgency === 'string' ? body.targetAgency.trim().slice(0, 160) : '';
+  const targetCaseworker = typeof body?.targetCaseworker === 'string' ? body.targetCaseworker.trim().slice(0, 160) : '';
+  const message = typeof body?.message === 'string' ? body.message.trim().slice(0, 2000) : '';
+  if (targetAgency.length < 2) return reply.code(400).send({ message: 'Velg hvilken etat innspillet skal sendes til.' });
+  if (message.length < 3) return reply.code(400).send({ message: 'Skriv hva mottakeren skal ta hensyn til.' });
+  const updated = await requirements.dispatch(id, { targetAgency, ...(targetCaseworker ? { targetCaseworker } : {}), message, dispatchedBy: user.id, dispatchedByName: user.displayName });
   return updated ? updated : reply.code(404).send({ message: 'Innspillet finnes ikke.' });
 });
 
