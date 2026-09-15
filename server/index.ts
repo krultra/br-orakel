@@ -150,6 +150,7 @@ function applyPreference(obligation: Obligation, preference?: TaskPreference): O
     isHidden,
     isMuted,
     ...(preference.mutedUntil ? { mutedUntil: preference.mutedUntil } : {}),
+    ...(preference.mutedBefore ? { mutedBefore: preference.mutedBefore } : {}),
     ...(preference.deadlineOverride ? { localDeadline: preference.deadlineOverride } : {}),
     ...(preference.comment ? { localComment: preference.comment } : {}),
   };
@@ -332,6 +333,9 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
     hiddenForever: instanceHiddenChange ? existing?.hiddenForever ?? false : body.hiddenForever ?? existing?.hiddenForever ?? false,
     muted: body.muted ?? existing?.muted ?? false,
     mutedUntil: body.mutedUntil ?? existing?.mutedUntil,
+    mutedBefore: Object.prototype.hasOwnProperty.call(body, 'mutedBefore')
+      ? (validDateKey(body.mutedBefore) ? body.mutedBefore : undefined)
+      : existing?.mutedBefore,
   };
   return demoStore.savePreference(user.id, preference);
 });

@@ -61,6 +61,8 @@ export interface TaskPreference {
   /** User-local demping; this is separate from hiding and worklist membership. */
   muted?: boolean;
   mutedUntil?: string;
+  /** User-local cutoff: recurring occurrences before this date are shown muted. */
+  mutedBefore?: string;
 }
 
 export interface TaskPreferenceUpdate extends Partial<TaskPreference> {
@@ -132,6 +134,8 @@ export interface Obligation {
   /** User-local demping; official obligation data remains unchanged. */
   isMuted?: boolean;
   mutedUntil?: string;
+  /** User-local cutoff for muting historical recurring occurrences. */
+  mutedBefore?: string;
   /** User-local adjustments, kept separate from official obligation fields. */
   localDeadline?: string;
   localComment?: string;

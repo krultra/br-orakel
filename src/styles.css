@@ -84,7 +84,7 @@ button { cursor: pointer; }
 .automation-note { color: #075985 !important; }
 .mute-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; padding: 14px 18px; }
 .mute-card p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
-.mute-actions { display: flex; align-items: end; gap: 8px; }
+.mute-actions { display: flex; align-items: end; justify-content: end; flex-wrap: wrap; gap: 8px; }
 .mute-actions [data-size] { min-width: 170px; }
 @media (max-width: 700px) { .mute-card, .mute-actions { align-items: stretch; flex-direction: column; } }
 .worklist-section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; }

@@ -4,6 +4,7 @@ import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
 import type { ChatAnswer, DemoUser, Obligation, Organization, Source, TaskStatus, UserReportedRequirement } from './domain/types';
+import { isMutedForDate } from './domain/task-visibility';
 import { statusForDate } from './domain/task-status';
 import { parseFormattedAnswer } from './format-answer';
 import { appEnvironment, appVersion } from './version';
@@ -245,7 +246,7 @@ function App() {
   const filteredByStatus = statusFilter === 'all' ? obligations : obligations.filter((item) => item.status === statusFilter);
   const filteredObligations = visibilityFilter === 'all'
     ? filteredByStatus
-    : filteredByStatus.filter((item) => visibilityFilter === 'hidden' ? item.isHidden === true : visibilityFilter === 'muted' ? item.isMuted === true : item.isHidden !== true);
+    : filteredByStatus.filter((item) => visibilityFilter === 'hidden' ? item.isHidden === true : visibilityFilter === 'muted' ? item.isMuted === true || Boolean(item.mutedBefore) : item.isHidden !== true);
   // Demping affects the calendar/catalogue, but a muted task is intentionally
   // not part of the active worklist until the user activates it again.
   const activeObligations = filteredObligations.filter((item) => item.isActivated === true && item.isMuted !== true);
@@ -333,7 +334,12 @@ function Overview({ organization, obligations, catalogObligations, allObligation
 
 function MuteControl({ orgNumber, obligation, onTaskChanged }: { orgNumber: string; obligation: Obligation; onTaskChanged: (nextSelectedId?: string | null) => void }) {
   const [until, setUntil] = useState('');
+  const [historicalBefore, setHistoricalBefore] = useState(obligation.mutedBefore ?? '');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setUntil('');
+    setHistoricalBefore(obligation.mutedBefore ?? '');
+  }, [obligation.id, obligation.mutedBefore]);
   const save = async (muted: boolean) => {
     setSaving(true);
     try {
@@ -343,7 +349,16 @@ function MuteControl({ orgNumber, obligation, onTaskChanged }: { orgNumber: stri
       setSaving(false);
     }
   };
-  return <Card className="surface-card mute-card"><div><p className="eyebrow">Oversiktsvisning</p><strong>{obligation.isMuted ? 'Oppgaven er dempet' : 'Demp valgt oppgave'}</strong><p>{obligation.isMuted ? 'Oppgaven kan aktiveres igjen når du vil.' : 'Demping er forskjellig fra skjuling og endrer ikke den offisielle oppgaven.'}</p>{isAutomated(obligation) && <p className="automation-note">Systeminnsending er hentet fra Oppgaveregisterets rapporteringsform. Dette er en offisiell opplysning og kan ikke endres som en lokal innstilling.</p>}</div>{obligation.isMuted ? <Button variant="secondary" onClick={() => void save(false)} disabled={saving}>Aktiver igjen</Button> : <div className="mute-actions"><Textfield label="Demp til (valgfritt)" type="date" value={until} onChange={(event) => setUntil(event.target.value)} /><Button variant="secondary" onClick={() => void save(true)} disabled={saving}>Demp oppgaven</Button></div>}</Card>;
+  const saveHistoricalMute = async () => {
+    setSaving(true);
+    try {
+      await api.saveTaskPreference(orgNumber, obligation.id, { activated: Boolean(obligation.isActivated), mutedBefore: historicalBefore || '' });
+      onTaskChanged();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <Card className="surface-card mute-card"><div><p className="eyebrow">Oversiktsvisning</p><strong>{obligation.isMuted ? 'Oppgaven er dempet' : 'Demp valgt oppgave'}</strong><p>{obligation.isMuted ? 'Oppgaven kan aktiveres igjen når du vil.' : 'Demping er forskjellig fra skjuling og endrer ikke den offisielle oppgaven.'}</p>{obligation.mutedBefore && <p>Forekomster før {formatDate(obligation.mutedBefore, true)} vises som dempet.</p>}{isAutomated(obligation) && <p className="automation-note">Systeminnsending er hentet fra Oppgaveregisterets rapporteringsform. Dette er en offisiell opplysning og kan ikke endres som en lokal innstilling.</p>}</div><div className="mute-actions"><Textfield label="Demp forekomster før" type="date" value={historicalBefore} onChange={(event) => setHistoricalBefore(event.target.value)} /><Button variant="secondary" onClick={() => void saveHistoricalMute()} disabled={saving || !historicalBefore}>Demp historikk</Button>{obligation.mutedBefore && <Button variant="secondary" onClick={() => { setHistoricalBefore(''); void saveHistoricalMute(); }} disabled={saving}>Vis historikk igjen</Button>}{obligation.isMuted ? <Button variant="secondary" onClick={() => void save(false)} disabled={saving}>Aktiver oppgaven</Button> : <><Textfield label="Demp oppgaven til (valgfritt)" type="date" value={until} onChange={(event) => setUntil(event.target.value)} /><Button variant="secondary" onClick={() => void save(true)} disabled={saving}>Demp oppgaven</Button></>}</div></Card>;
 }
 
 function YearWheel({ obligations, start, includeHidden, selectedId, selectedOccurrenceDate, onSelect }: { obligations: Obligation[]; start: Date; includeHidden: boolean; selectedId?: string; selectedOccurrenceDate?: string; onSelect: (id: string, date?: string) => void }) {
@@ -365,7 +380,7 @@ function YearWheel({ obligations, start, includeHidden, selectedId, selectedOccu
     }
     return [...buckets, { month: 'Uten fast frist', items: noDateItems }];
   }, [includeHidden, obligations, start]);
-  return <div className="year-wheel">{grouped.map(({ month, items }) => typeof month === 'string' ? <NoDatePanel key={month} items={items} selectedId={selectedId} onSelect={onSelect} /> : <div className={`month-cell ${items.length ? 'has-items' : ''} ${isCurrentMonth(month) ? 'is-current-month' : ''}`} key={dateKey(month)}><span className="month-label">{monthName(month)} {month.getFullYear()}{isCurrentMonth(month) && <small className="current-month-label">Denne måneden</small>}</span>{items.map(({ item, date }) => { const itemStatus = itemStatusForDate(item, date); const displayDate = occurrenceDeadline(item, date); const state = deadlineState(itemStatus, displayDate, isAutomated(item)); const automated = automationLabel(item); return <button key={`${item.id}-${date ?? 'no-date'}`} title={`${item.name} · ${formatDate(displayDate, true)}`} className={`calendar-item ${statusClass[itemStatus]} deadline-${state} ${isAutomated(item) ? 'is-automated' : ''} ${item.isMuted ? 'is-muted' : ''} ${selectedId === item.id && selectedOccurrenceDate === date ? 'is-selected' : ''}`} onClick={() => onSelect(item.id, date)}><span className={`calendar-dot ${isAutomated(item) ? 'system-dot' : ''}`} />{item.name}<small>{formatDate(displayDate, true)} · {automated || statusLabels[itemStatus]}{automated && itemStatus === 'completed' ? ` · ${statusLabels[itemStatus]}` : ''}{item.isMuted ? ' · Dempet' : ''}{deadlineStateLabel(state) ? ` · ${deadlineStateLabel(state)}` : ''}</small></button>; })}</div>)}</div>;
+  return <div className="year-wheel">{grouped.map(({ month, items }) => typeof month === 'string' ? <NoDatePanel key={month} items={items} selectedId={selectedId} onSelect={onSelect} /> : <div className={`month-cell ${items.length ? 'has-items' : ''} ${isCurrentMonth(month) ? 'is-current-month' : ''}`} key={dateKey(month)}><span className="month-label">{monthName(month)} {month.getFullYear()}{isCurrentMonth(month) && <small className="current-month-label">Denne måneden</small>}</span>{items.map(({ item, date }) => { const itemStatus = itemStatusForDate(item, date); const displayDate = occurrenceDeadline(item, date); const state = deadlineState(itemStatus, displayDate, isAutomated(item)); const automated = automationLabel(item); const muted = isMutedForDate(item, date); return <button key={`${item.id}-${date ?? 'no-date'}`} title={`${item.name} · ${formatDate(displayDate, true)}`} className={`calendar-item ${statusClass[itemStatus]} deadline-${state} ${isAutomated(item) ? 'is-automated' : ''} ${muted ? 'is-muted' : ''} ${selectedId === item.id && selectedOccurrenceDate === date ? 'is-selected' : ''}`} onClick={() => onSelect(item.id, date)}><span className={`calendar-dot ${isAutomated(item) ? 'system-dot' : ''}`} />{item.name}<small>{formatDate(displayDate, true)} · {automated || statusLabels[itemStatus]}{automated && itemStatus === 'completed' ? ` · ${statusLabels[itemStatus]}` : ''}{muted ? ' · Dempet' : ''}{deadlineStateLabel(state) ? ` · ${deadlineStateLabel(state)}` : ''}</small></button>; })}</div>)}</div>;
 }
 
 function NoDatePanel({ items, selectedId, onSelect }: { items: Array<{ item: Obligation; date?: string }>; selectedId?: string; onSelect: (id: string, date?: string) => void }) {
@@ -384,7 +399,7 @@ function NoDatePanel({ items, selectedId, onSelect }: { items: Array<{ item: Obl
 }
 
 function ObligationList({ obligations, selectedId, onSelect }: { obligations: Obligation[]; selectedId?: string; onSelect: (id: string, date?: string) => void }) {
-  return <div className="obligation-list">{obligations.map((item) => { const firstDate = item.deadlineDates?.[0]; const deadline = occurrenceDeadline(item, firstDate); const itemStatus = itemStatusForDate(item, firstDate); const state = deadlineState(itemStatus, deadline, isAutomated(item)); return <button className={`list-obligation deadline-${state} ${isAutomated(item) ? 'is-automated' : ''} ${item.isMuted ? 'is-muted' : ''} ${selectedId === item.id ? 'is-selected' : ''}`} key={item.id} onClick={() => onSelect(item.id, firstDate)}><span className={`timeline-dot ${statusClass[itemStatus]} ${isAutomated(item) ? 'system-dot' : ''}`} /><span><strong>{item.name}</strong><small>{item.frequency} · {deadline ? `frist ${formatDate(deadline, true)}` : 'hendelsesutløst'}{automationLabel(item) ? ` · ${automationLabel(item)}` : ''}{deadlineStateLabel(state) ? ` · ${deadlineStateLabel(state)}` : ''}</small></span><ChevronRight size={17} /></button>; })}</div>;
+  return <div className="obligation-list">{obligations.map((item) => { const firstDate = item.deadlineDates?.[0]; const deadline = occurrenceDeadline(item, firstDate); const itemStatus = itemStatusForDate(item, firstDate); const state = deadlineState(itemStatus, deadline, isAutomated(item)); const muted = isMutedForDate(item, firstDate); return <button className={`list-obligation deadline-${state} ${isAutomated(item) ? 'is-automated' : ''} ${muted ? 'is-muted' : ''} ${selectedId === item.id ? 'is-selected' : ''}`} key={item.id} onClick={() => onSelect(item.id, firstDate)}><span className={`timeline-dot ${statusClass[itemStatus]} ${isAutomated(item) ? 'system-dot' : ''}`} /><span><strong>{item.name}</strong><small>{item.frequency} · {deadline ? `frist ${formatDate(deadline, true)}` : 'hendelsesutløst'}{automationLabel(item) ? ` · ${automationLabel(item)}` : ''}{muted ? ' · Dempet' : ''}{deadlineStateLabel(state) ? ` · ${deadlineStateLabel(state)}` : ''}</small></span><ChevronRight size={17} /></button>; })}</div>;
 }
 
 function TaskRow({ obligation, selected, onClick }: { obligation: Obligation; selected: boolean; onClick: () => void }) {
@@ -393,7 +408,8 @@ function TaskRow({ obligation, selected, onClick }: { obligation: Obligation; se
   const itemStatus = itemStatusForDate(obligation, firstDate);
   const state = deadlineState(itemStatus, deadline, isAutomated(obligation));
   const hasComment = Boolean(obligation.localComment || Object.values(obligation.localCommentByDate ?? {}).some(Boolean));
-  return <button className={`task-row deadline-${state} ${isAutomated(obligation) ? 'is-automated' : ''} ${obligation.isMuted ? 'is-muted' : ''} ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[itemStatus]} ${isAutomated(obligation) ? 'system-dot' : ''}`}>{isEventLike(obligation) ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} />{hasComment && <span className="local-note">Kommentar</span>}{automationLabel(obligation) && <span className="automation-label">{automationLabel(obligation)}</span>}{obligation.isMuted && <span className="muted-label">Dempet</span>}{obligation.isHidden && <span className="hidden-label"><EyeOff size={12} /> Skjult</span>}</div><span>{obligation.eventLabel || obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>{obligation.localDeadline || obligation.deadlineByDate?.[firstDate ?? ''] ? 'Lokal frist' : 'Frist'}</small><strong>{formatDate(deadline, true)}</strong>{deadlineStateLabel(state) && <span className={`deadline-label deadline-${state}`}>{deadlineStateLabel(state)}</span>}</div><div className="task-status"><span className={`status-pill ${statusClass[itemStatus]}`}>{automationLabel(obligation) && itemStatus !== 'completed' ? automationLabel(obligation) : statusLabels[itemStatus]}</span><ChevronRight size={18} /></div></button>;
+  const muted = isMutedForDate(obligation, firstDate);
+  return <button className={`task-row deadline-${state} ${isAutomated(obligation) ? 'is-automated' : ''} ${muted ? 'is-muted' : ''} ${selected ? 'is-selected' : ''}`} onClick={onClick}><div className={`task-icon ${statusClass[itemStatus]} ${isAutomated(obligation) ? 'system-dot' : ''}`}>{isEventLike(obligation) ? <CircleHelp size={18} /> : <CalendarDays size={18} />}</div><div className="task-main"><div className="task-title-row"><strong>{obligation.name}</strong><TrustLabel level={obligation.officialStatus} />{hasComment && <span className="local-note">Kommentar</span>}{automationLabel(obligation) && <span className="automation-label">{automationLabel(obligation)}</span>}{muted && <span className="muted-label">Dempet</span>}{obligation.isHidden && <span className="hidden-label"><EyeOff size={12} /> Skjult</span>}</div><span>{obligation.eventLabel || obligation.responsibleAgency} · {obligation.frequency}</span></div><div className="task-deadline"><small>{obligation.localDeadline || obligation.deadlineByDate?.[firstDate ?? ''] ? 'Lokal frist' : 'Frist'}</small><strong>{formatDate(deadline, true)}</strong>{deadlineStateLabel(state) && <span className={`deadline-label deadline-${state}`}>{deadlineStateLabel(state)}</span>}</div><div className="task-status"><span className={`status-pill ${statusClass[itemStatus]}`}>{automationLabel(obligation) && itemStatus !== 'completed' ? automationLabel(obligation) : statusLabels[itemStatus]}</span><ChevronRight size={18} /></div></button>;
 }
 
 function ObligationDetail({ orgNumber, obligation, occurrenceDate, sources, onTaskChanged }: { orgNumber: string; obligation: Obligation | null; occurrenceDate: string | null; sources: Source[]; onTaskChanged: (nextSelectedId?: string | null) => void }) {

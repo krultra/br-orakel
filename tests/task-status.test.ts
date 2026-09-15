@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { aggregateRecurringStatus, statusForDate } from '../src/domain/task-status.js';
+import { isMutedForDate } from '../src/domain/task-visibility.js';
 
 const dates = ['2026-09-05', '2026-10-05', '2026-11-05'];
 
@@ -19,4 +20,12 @@ test('serie blir ferdig først når alle kjente frister er ferdige', () => {
     '2026-10-05': 'completed',
     '2026-11-05': 'completed',
   }), 'completed');
+});
+
+test('historiske forekomster kan dempes uten å skjule hele oppgaven', () => {
+  const obligation = { isMuted: false, mutedBefore: '2026-07-01' };
+
+  assert.equal(isMutedForDate(obligation, '2026-06-05'), true);
+  assert.equal(isMutedForDate(obligation, '2026-07-05'), false);
+  assert.equal(isMutedForDate({ isMuted: true }, '2026-10-05'), true);
 });

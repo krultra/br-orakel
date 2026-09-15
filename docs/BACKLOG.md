@@ -92,7 +92,7 @@ en beslutning eller annen leveranse.
 - [x] Lage filter for dempede oppgaver.
 - [x] Implementere `isMuted` separat fra `isActivated` og `isHidden`.
 - [x] Støtte aktivering av én dempet oppgave.
-- [ ] Støtte datofilter som demper alle historiske oppgaver ved ny virksomhet.
+- [x] Støtte datofilter som demper alle historiske oppgaver ved ny virksomhet.
 - [ ] Støtte aktivering av alle dempede oppgaver samlet.
 
 **Akseptanse:** A-melding som ikke er manuelt markert ferdig blir ikke vist som
