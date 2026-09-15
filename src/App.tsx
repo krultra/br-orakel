@@ -164,6 +164,7 @@ function App() {
   const [savedOrganizations, setSavedOrganizations] = useState<Organization[]>([]);
   const [organizationSearchResults, setOrganizationSearchResults] = useState<Organization[]>([]);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [organizationMutedBefore, setOrganizationMutedBefore] = useState('');
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [reports, setReports] = useState<UserReportedRequirement[]>([]);
@@ -181,9 +182,9 @@ function App() {
   const loadOrganization = async (number = orgNumber, preserveSelection = false) => {
     setLoading(true);
     try {
-      const [nextOrg, nextObligations, nextSources, nextReports] = await Promise.all([api.organization(number), api.obligations(number), api.sources('', number), api.reports()]);
-      setOrganization(nextOrg); setObligations(nextObligations); setSources(nextSources); setReports(nextReports); setSelectedObligationId((current) => preserveSelection ? (current && nextObligations.some((item) => item.id === current) ? current : current === null ? null : nextObligations[0]?.id ?? null) : nextObligations[0]?.id ?? null); setOrganizationSearchResults([]); setToast('Virksomhetsoversikten er oppdatert.');
-    } catch (error) { setOrganization(null); setToast(error instanceof Error ? error.message : 'Kunne ikke laste virksomheten.'); }
+      const [nextOrg, nextObligations, nextSources, nextReports, nextViewPreference] = await Promise.all([api.organization(number), api.obligations(number), api.sources('', number), api.reports(), api.organizationViewPreference(number)]);
+      setOrganization(nextOrg); setOrganizationMutedBefore(nextViewPreference.mutedBefore ?? ''); setObligations(nextObligations); setSources(nextSources); setReports(nextReports); setSelectedObligationId((current) => preserveSelection ? (current && nextObligations.some((item) => item.id === current) ? current : current === null ? null : nextObligations[0]?.id ?? null) : nextObligations[0]?.id ?? null); setOrganizationSearchResults([]); setToast('Virksomhetsoversikten er oppdatert.');
+    } catch (error) { setOrganization(null); setOrganizationMutedBefore(''); setToast(error instanceof Error ? error.message : 'Kunne ikke laste virksomheten.'); }
     finally { setLoading(false); }
   };
 
@@ -237,6 +238,7 @@ function App() {
     } finally {
       setUser(null);
       setOrganization(null);
+      setOrganizationMutedBefore('');
       setObligations([]);
       setSources([]);
       setReports([]);
@@ -262,7 +264,7 @@ function App() {
   const filteredByStatus = statusFilter === 'all' ? obligations : obligations.filter((item) => item.status === statusFilter);
   const filteredObligations = visibilityFilter === 'all'
     ? filteredByStatus
-    : filteredByStatus.filter((item) => visibilityFilter === 'hidden' ? item.isHidden === true : visibilityFilter === 'muted' ? item.isMuted === true || Boolean(item.mutedBefore) : item.isHidden !== true);
+    : filteredByStatus.filter((item) => visibilityFilter === 'hidden' ? item.isHidden === true : visibilityFilter === 'muted' ? item.isMuted === true || Boolean(item.mutedBefore) || Boolean(item.organizationMutedBefore) : item.isHidden !== true);
   // Demping affects the calendar/catalogue, but a muted task is intentionally
   // not part of the active worklist until the user activates it again.
   const activeObligations = filteredObligations.filter((item) => item.isActivated === true && item.isMuted !== true);
@@ -282,7 +284,7 @@ function App() {
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}<button onClick={() => setToast('')} aria-label="Lukk melding"><X size={16} /></button></div>}
 
       {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status) => { const updated = await api.updateReport(id, status); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
-      {user.role === 'business' && organization && <Overview organization={organization} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} />}
+      {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} />}
       {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Søk etter virksomheten din ovenfor, velg et treff og legg den til i Mine virksomheter.</Paragraph></Card>}
     </main>
   </div>;
@@ -307,7 +309,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: DemoUser) => 
   return <main className="auth-shell"><Card className="auth-card"><form onSubmit={(event) => { event.preventDefault(); void submit(); }}><img src="/orakel-logo.svg" alt="ORaKeL" className="auth-logo" /><p className="eyebrow">Demo-tilgang</p><Heading level={1}>{mode === 'login' ? 'Logg inn i ORaKeL' : 'Opprett demo-bruker'}</Heading><Paragraph>{mode === 'login' ? 'Velg virksomhetsbruker eller saksbehandler for å starte.' : 'Brukeren lagres kun i denne hackathon-instansen.'}</Paragraph>{mode === 'register' && <Textfield label="Navn som vises" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />}{<Textfield label="Brukernavn" value={username} onChange={(event) => setUsername(event.target.value)} />}{<Textfield label="Passord" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />}{error && <Alert data-color="danger"><AlertCircle size={17} />{error}</Alert>}<Button type="submit" disabled={busy || !username || !password}>{busy ? 'Arbeider…' : mode === 'login' ? 'Logg inn' : 'Opprett bruker'}</Button><button type="button" className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>{mode === 'login' ? 'Opprett ny virksomhetsbruker' : 'Jeg har allerede bruker'}</button>{mode === 'login' && <p className="demo-credentials">Demo-saksbehandler: <code>br-saksbehandler</code> / <code>demo</code></p>}</form></Card></main>;
 }
 
-function Overview({ organization, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged }: { organization: Organization; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void }) {
+function Overview({ organization, organizationMutedBefore, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged, onOrganizationViewChanged }: { organization: Organization; organizationMutedBefore: string; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void; onOrganizationViewChanged: () => void }) {
   const [showReport, setShowReport] = useState(false);
   const [taskQuery, setTaskQuery] = useState('');
   const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | 'periodic' | 'event'>('all');
@@ -333,7 +335,7 @@ function Overview({ organization, obligations, catalogObligations, allObligation
     });
   }, [eventFilter, obligations, taskQuery, taskSort, taskTypeFilter]);
   useLayoutEffect(() => { if (mainColumnRef.current) mainColumnRef.current.scrollTop = mainScrollTop.current; }, [visibilityFilter, statusFilter]);
-  const mutedCount = catalogObligations.filter((item) => item.isMuted === true || Boolean(item.mutedBefore)).length;
+  const mutedCount = catalogObligations.filter((item) => item.isMuted === true || Boolean(item.mutedBefore) || Boolean(item.organizationMutedBefore)).length;
   const activateAllMuted = async () => {
     setActivatingAllMuted(true);
     try {
@@ -355,14 +357,38 @@ function Overview({ organization, obligations, catalogObligations, allObligation
       <aside className="side-column"><ChatPanel orgNumber={organization.orgNumber} sources={sources} /><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} occurrenceDate={selectedOccurrenceDate} sources={sources} onTaskChanged={onTaskChanged} /><SourcePanel sources={sources} /></aside>
     </section>
     {selectedObligation && <MuteControl orgNumber={organization.orgNumber} obligation={selectedObligation} onTaskChanged={onTaskChanged} />}
+    <OrganizationMuteControl orgNumber={organization.orgNumber} mutedBefore={organizationMutedBefore} onChanged={onOrganizationViewChanged} />
     {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => setShowReport(false)} />}
   </>;
 }
 
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const [displayValue, setDisplayValue] = useState(() => formatDateInput(value));
+  const nativeInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => setDisplayValue(formatDateInput(value)), [value]);
-  return <Textfield label={label} type="text" inputMode="numeric" placeholder="dd/mm/åååå" value={displayValue} onChange={(event) => { const nextDisplayValue = event.target.value; setDisplayValue(nextDisplayValue); onChange(parseDateInput(nextDisplayValue)); }} />;
+  const openPicker = () => {
+    const input = nativeInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+    if (!input) return;
+    if (input.showPicker) input.showPicker();
+    else input.click();
+  };
+  return <div className="date-field"><Textfield label={label} type="text" inputMode="numeric" placeholder="dd/mm/åååå" value={displayValue} onChange={(event) => { const nextDisplayValue = event.target.value; setDisplayValue(nextDisplayValue); onChange(parseDateInput(nextDisplayValue)); }} /><button type="button" className="date-picker-trigger" onClick={openPicker} aria-label={`Velg dato for ${label}`}><CalendarDays size={16} /></button><input ref={nativeInputRef} className="native-date-picker" type="date" value={value} onChange={(event) => { setDisplayValue(formatDateInput(event.target.value)); onChange(event.target.value); }} tabIndex={-1} aria-hidden="true" /></div>;
+}
+
+function OrganizationMuteControl({ orgNumber, mutedBefore, onChanged }: { orgNumber: string; mutedBefore: string; onChanged: () => void }) {
+  const [cutoff, setCutoff] = useState(mutedBefore);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setCutoff(mutedBefore), [mutedBefore]);
+  const save = async (nextCutoff: string | undefined) => {
+    setSaving(true);
+    try {
+      await api.saveOrganizationViewPreference(orgNumber, nextCutoff);
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <Card className="surface-card mute-card organization-mute-card"><div><p className="eyebrow">Virksomhetsvisning</p><strong>Demp historikk for alle oppgaver</strong><p>Forekomster før valgt dato vises grå i årshjulet og listen. Dette endrer ikke offisielle opplysninger, status eller skjuling.</p>{mutedBefore && <p>Aktiv grense: {formatDate(mutedBefore, true)}</p>}</div><div className="mute-actions"><DateField label="Demp forekomster før" value={cutoff} onChange={setCutoff} /><Button variant="secondary" onClick={() => void save(cutoff || undefined)} disabled={saving || !cutoff}>{saving ? 'Lagrer…' : 'Demp all historikk'}</Button>{mutedBefore && <Button variant="secondary" onClick={() => { setCutoff(''); void save(undefined); }} disabled={saving}>Vis all historikk</Button>}</div></Card>;
 }
 
 function MuteControl({ orgNumber, obligation, onTaskChanged }: { orgNumber: string; obligation: Obligation; onTaskChanged: (nextSelectedId?: string | null) => void }) {

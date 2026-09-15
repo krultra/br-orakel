@@ -27,5 +27,7 @@ test('historiske forekomster kan dempes uten å skjule hele oppgaven', () => {
 
   assert.equal(isMutedForDate(obligation, '2026-06-05'), true);
   assert.equal(isMutedForDate(obligation, '2026-07-05'), false);
+  assert.equal(isMutedForDate({ isMuted: false, organizationMutedBefore: '2026-07-01' }, '2026-06-05'), true);
+  assert.equal(isMutedForDate({ isMuted: false, organizationMutedBefore: '2026-07-01' }, '2026-07-05'), false);
   assert.equal(isMutedForDate({ isMuted: true }, '2026-10-05'), true);
 });

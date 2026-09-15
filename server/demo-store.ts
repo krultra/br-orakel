@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { DemoUser, TaskPreference, UserRole } from '../src/domain/types.js';
+import type { DemoUser, OrganizationViewPreference, TaskPreference, UserRole } from '../src/domain/types.js';
 
 interface StoredUser extends DemoUser {
   passwordHash: string;
@@ -10,9 +10,10 @@ interface StoredUser extends DemoUser {
 interface StoreFile {
   users: StoredUser[];
   taskPreferences: TaskPreference[];
+  organizationViewPreferences: OrganizationViewPreference[];
 }
 
-const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [] });
+const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [] });
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
@@ -36,6 +37,7 @@ export class DemoStore {
   async init(): Promise<void> {
     try {
       this.data = JSON.parse(await readFile(this.filePath, 'utf8')) as StoreFile;
+      this.data.organizationViewPreferences ??= [];
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       await mkdir(path.dirname(this.filePath), { recursive: true });
@@ -113,6 +115,19 @@ export class DemoStore {
     return this.data.taskPreferences.filter((item) => item.userId === userId && item.orgNumber === orgNumber);
   }
 
+  organizationViewPreference(userId: string, orgNumber: string): OrganizationViewPreference | undefined {
+    return this.data.organizationViewPreferences.find((item) => item.userId === userId && item.orgNumber === orgNumber);
+  }
+
+  async saveOrganizationViewPreference(userId: string, preference: OrganizationViewPreference): Promise<OrganizationViewPreference> {
+    const savedPreference = { ...preference, userId };
+    const index = this.data.organizationViewPreferences.findIndex((item) => item.userId === userId && item.orgNumber === preference.orgNumber);
+    if (index >= 0) this.data.organizationViewPreferences[index] = savedPreference;
+    else this.data.organizationViewPreferences.push(savedPreference);
+    await this.persist();
+    return savedPreference;
+  }
+
   async savePreference(userId: string, preference: TaskPreference): Promise<TaskPreference> {
     const savedPreference = { ...preference, userId };
     const index = this.data.taskPreferences.findIndex((item) => item.userId === userId && item.orgNumber === preference.orgNumber && item.obligationId === preference.obligationId);
@@ -130,6 +145,11 @@ export class DemoStore {
       preference.muted = false;
       preference.mutedUntil = undefined;
       preference.mutedBefore = undefined;
+      changed += 1;
+    }
+    const organizationPreference = this.organizationViewPreference(userId, orgNumber);
+    if (organizationPreference?.mutedBefore) {
+      organizationPreference.mutedBefore = undefined;
       changed += 1;
     }
     if (changed > 0) await this.persist();

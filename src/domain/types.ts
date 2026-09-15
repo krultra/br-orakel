@@ -71,6 +71,13 @@ export interface TaskPreferenceUpdate extends Partial<TaskPreference> {
   hiddenScope?: 'instance' | 'all';
 }
 
+export interface OrganizationViewPreference {
+  userId: string;
+  orgNumber: string;
+  /** User-local cutoff that mutes historical occurrences across the catalogue. */
+  mutedBefore?: string;
+}
+
 export interface Source {
   id: string;
   title: string;
@@ -136,6 +143,8 @@ export interface Obligation {
   mutedUntil?: string;
   /** User-local cutoff for muting historical recurring occurrences. */
   mutedBefore?: string;
+  /** User-local organization-wide cutoff for muting historical occurrences. */
+  organizationMutedBefore?: string;
   /** User-local adjustments, kept separate from official obligation fields. */
   localDeadline?: string;
   localComment?: string;

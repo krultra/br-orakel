@@ -42,11 +42,13 @@ test('DemoStore kan aktivere alle dempede oppgaver for én virksomhet', async ()
     const user = await store.createUser({ username: `bulk-${Date.now()}`, displayName: 'Bulkbruker', password: 'demo' });
     await store.savePreference(user.id, { userId: user.id, orgNumber: '999999999', obligationId: 'muted-1', activated: true, muted: true, mutedBefore: '2026-07-01' });
     await store.savePreference(user.id, { userId: user.id, orgNumber: '888888888', obligationId: 'other-org', activated: true, muted: true });
+    await store.saveOrganizationViewPreference(user.id, { userId: user.id, orgNumber: '999999999', mutedBefore: '2026-07-01' });
 
-    assert.equal(await store.activateAllMuted(user.id, '999999999'), 1);
+    assert.equal(await store.activateAllMuted(user.id, '999999999'), 2);
     assert.equal(store.preferences(user.id, '999999999')[0]?.muted, false);
     assert.equal(store.preferences(user.id, '999999999')[0]?.mutedBefore, undefined);
     assert.equal(store.preferences(user.id, '888888888')[0]?.muted, true);
+    assert.equal(store.organizationViewPreference(user.id, '999999999')?.mutedBefore, undefined);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

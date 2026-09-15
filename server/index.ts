@@ -9,7 +9,7 @@ import { EnhetsregisteretAdapter, EnhetsregisteretError } from '../src/data/enhe
 import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/data/dataset-organization-adapter.js';
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
-import type { DemoUser, Obligation, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
+import type { DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
 import { aggregateRecurringStatus } from '../src/domain/task-status.js';
 import { DemoStore } from './demo-store.js';
 
@@ -118,12 +118,12 @@ function automaticStatusByDate(obligation: Obligation, today: string): Record<st
   return result;
 }
 
-function applyPreference(obligation: Obligation, preference?: TaskPreference): Obligation {
+function applyPreference(obligation: Obligation, preference?: TaskPreference, organizationMutedBefore?: string): Obligation {
   const today = new Date().toISOString().slice(0, 10);
   const automaticStatuses = automaticStatusByDate(obligation, today);
   if (!preference) {
     const automaticStatus = obligation.deadline && automaticStatuses[obligation.deadline];
-    return { ...obligation, isActivated: false, ...(Object.keys(automaticStatuses).length ? { automaticStatusByDate: automaticStatuses } : {}), ...(automaticStatus ? { status: automaticStatus, completionSource: 'rule' } : {}) };
+    return { ...obligation, isActivated: false, ...(organizationMutedBefore ? { organizationMutedBefore } : {}), ...(Object.keys(automaticStatuses).length ? { automaticStatusByDate: automaticStatuses } : {}), ...(automaticStatus ? { status: automaticStatus, completionSource: 'rule' } : {}) };
   }
   const status = normalizeTaskStatus(preference.status);
   const isHidden = preference.hiddenForever === true || Boolean(preference.hiddenUntil && preference.hiddenUntil >= today);
@@ -151,6 +151,7 @@ function applyPreference(obligation: Obligation, preference?: TaskPreference): O
     isMuted,
     ...(preference.mutedUntil ? { mutedUntil: preference.mutedUntil } : {}),
     ...(preference.mutedBefore ? { mutedBefore: preference.mutedBefore } : {}),
+    ...(organizationMutedBefore ? { organizationMutedBefore } : {}),
     ...(preference.deadlineOverride ? { localDeadline: preference.deadlineOverride } : {}),
     ...(preference.comment ? { localComment: preference.comment } : {}),
   };
@@ -262,7 +263,8 @@ app.get('/api/organizations/:orgNumber/obligations', async (request, reply) => {
     const officialObligations = await obligations.listForOrganization(organization);
     const user = sessionUser(request);
     const preferences = user ? demoStore.preferences(user.id, organization.orgNumber) : [];
-    return officialObligations.map((obligation) => applyPreference(obligation, preferences.find((item) => item.obligationId === obligation.id)));
+    const organizationMutedBefore = user ? demoStore.organizationViewPreference(user.id, organization.orgNumber)?.mutedBefore : undefined;
+    return officialObligations.map((obligation) => applyPreference(obligation, preferences.find((item) => item.obligationId === obligation.id), organizationMutedBefore));
   } catch (error) {
     if (error instanceof DatasetOrganizationError) {
       return reply.code(502).send({ code: 'DATASET_UNAVAILABLE', message: 'Det lokale hackathon-datasettet er ikke tilgjengelig akkurat nå.' });
@@ -275,6 +277,24 @@ app.get('/api/organizations/:orgNumber/obligations', async (request, reply) => {
     }
     throw error;
   }
+});
+
+app.get('/api/organizations/:orgNumber/view-preference', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan lese visningsinnstillinger.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  return demoStore.organizationViewPreference(user.id, orgNumber.replace(/\s/g, '')) ?? { userId: user.id, orgNumber: orgNumber.replace(/\s/g, '') };
+});
+
+app.put('/api/organizations/:orgNumber/view-preference', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer visningsinnstillinger.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  const body = request.body as { mutedBefore?: unknown };
+  const normalizedOrgNumber = orgNumber.replace(/\s/g, '');
+  const mutedBefore = body && validDateKey(body.mutedBefore) ? body.mutedBefore : undefined;
+  const preference: OrganizationViewPreference = { userId: user.id, orgNumber: normalizedOrgNumber, mutedBefore };
+  return demoStore.saveOrganizationViewPreference(user.id, preference);
 });
 
 app.get('/api/organizations/:orgNumber/task-preferences', async (request, reply) => {
