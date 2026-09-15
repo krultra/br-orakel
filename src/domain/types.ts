@@ -78,6 +78,23 @@ export interface OrganizationViewPreference {
   mutedBefore?: string;
 }
 
+export type OrganizationFieldStatus = 'OFFICIAL' | 'USER_INPUT' | 'USER_SUGGESTION' | 'UNKNOWN';
+export type OrganizationUserInputStatus = Extract<OrganizationFieldStatus, 'USER_INPUT' | 'USER_SUGGESTION'>;
+
+export interface OrganizationUserInput {
+  id: string;
+  label: string;
+  value: string;
+  status: OrganizationUserInputStatus;
+  updatedAt: string;
+}
+
+export interface OrganizationProfile {
+  userId: string;
+  orgNumber: string;
+  inputs: OrganizationUserInput[];
+}
+
 export interface Source {
   id: string;
   title: string;

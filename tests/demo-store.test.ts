@@ -29,6 +29,10 @@ test('DemoStore oppretter bruker, virksomhetsfavoritt og personlig oppgaveprefer
     assert.equal(store.preferences(user.id, '999999999')[0]?.obligationId, 'obl-ny-ansatt');
     assert.equal(store.preferences(user.id, '999999999')[0]?.deadlineOverride, '2026-09-12');
     assert.equal(store.preferences(user.id, '999999999')[0]?.comment, 'Følg opp med regnskapsfører.');
+
+    const profile = await store.saveOrganizationProfile(user.id, '999999999', [{ id: 'input-1', label: 'Regnskapssystem', value: 'Tripletex', status: 'USER_INPUT', updatedAt: '2026-09-15T10:00:00.000Z' }]);
+    assert.equal(profile.inputs[0]?.value, 'Tripletex');
+    assert.equal(store.organizationProfile(user.id, '999999999').inputs[0]?.status, 'USER_INPUT');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

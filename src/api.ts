@@ -1,4 +1,4 @@
-import type { ChatAnswer, DemoUser, Obligation, Organization, OrganizationViewPreference, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init });
@@ -20,6 +20,8 @@ export const api = {
   obligations: (orgNumber: string) => request<Obligation[]>(`/api/organizations/${orgNumber}/obligations`),
   organizationViewPreference: (orgNumber: string) => request<OrganizationViewPreference>(`/api/organizations/${orgNumber}/view-preference`),
   saveOrganizationViewPreference: (orgNumber: string, mutedBefore?: string) => request<OrganizationViewPreference>(`/api/organizations/${orgNumber}/view-preference`, { method: 'PUT', body: JSON.stringify({ mutedBefore: mutedBefore || null }) }),
+  organizationProfile: (orgNumber: string) => request<OrganizationProfile>(`/api/organizations/${orgNumber}/profile`),
+  saveOrganizationProfile: (orgNumber: string, inputs: OrganizationUserInput[]) => request<OrganizationProfile>(`/api/organizations/${orgNumber}/profile`, { method: 'PUT', body: JSON.stringify({ inputs }) }),
   sources: (query = '', orgNumber?: string) => request<Source[]>(`/api/sources?q=${encodeURIComponent(query)}${orgNumber ? `&orgNumber=${encodeURIComponent(orgNumber)}` : ''}`),
   reports: () => request<UserReportedRequirement[]>('/api/reported-requirements'),
   createReport: (input: Partial<UserReportedRequirement>) => request<UserReportedRequirement>('/api/reported-requirements', { method: 'POST', body: JSON.stringify(input) }),

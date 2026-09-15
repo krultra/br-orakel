@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { DemoUser, OrganizationViewPreference, TaskPreference, UserRole } from '../src/domain/types.js';
+import type { DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, TaskPreference, UserRole } from '../src/domain/types.js';
 
 interface StoredUser extends DemoUser {
   passwordHash: string;
@@ -11,9 +11,10 @@ interface StoreFile {
   users: StoredUser[];
   taskPreferences: TaskPreference[];
   organizationViewPreferences: OrganizationViewPreference[];
+  organizationProfiles: OrganizationProfile[];
 }
 
-const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [] });
+const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [] });
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
@@ -38,6 +39,7 @@ export class DemoStore {
     try {
       this.data = JSON.parse(await readFile(this.filePath, 'utf8')) as StoreFile;
       this.data.organizationViewPreferences ??= [];
+      this.data.organizationProfiles ??= [];
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       await mkdir(path.dirname(this.filePath), { recursive: true });
@@ -126,6 +128,20 @@ export class DemoStore {
     else this.data.organizationViewPreferences.push(savedPreference);
     await this.persist();
     return savedPreference;
+  }
+
+  organizationProfile(userId: string, orgNumber: string): OrganizationProfile {
+    return this.data.organizationProfiles.find((item) => item.userId === userId && item.orgNumber === orgNumber)
+      ?? { userId, orgNumber, inputs: [] };
+  }
+
+  async saveOrganizationProfile(userId: string, orgNumber: string, inputs: OrganizationUserInput[]): Promise<OrganizationProfile> {
+    const profile: OrganizationProfile = { userId, orgNumber, inputs };
+    const index = this.data.organizationProfiles.findIndex((item) => item.userId === userId && item.orgNumber === orgNumber);
+    if (index >= 0) this.data.organizationProfiles[index] = profile;
+    else this.data.organizationProfiles.push(profile);
+    await this.persist();
+    return profile;
   }
 
   async savePreference(userId: string, preference: TaskPreference): Promise<TaskPreference> {

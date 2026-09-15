@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
@@ -297,6 +297,38 @@ app.put('/api/organizations/:orgNumber/view-preference', async (request, reply) 
   return demoStore.saveOrganizationViewPreference(user.id, preference);
 });
 
+app.get('/api/organizations/:orgNumber/profile', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan lese virksomhetsprofilen.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  return demoStore.organizationProfile(user.id, orgNumber.replace(/\s/g, ''));
+});
+
+app.put('/api/organizations/:orgNumber/profile', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan endre virksomhetsprofilen.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  const normalizedOrgNumber = orgNumber.replace(/\s/g, '');
+  const body = request.body as { inputs?: unknown };
+  const rawInputs = Array.isArray(body?.inputs) ? body.inputs : [];
+  const now = new Date().toISOString();
+  const inputs = rawInputs.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const candidate = item as Record<string, unknown>;
+    const label = typeof candidate.label === 'string' ? candidate.label.trim().slice(0, 120) : '';
+    const value = typeof candidate.value === 'string' ? candidate.value.trim().slice(0, 2000) : '';
+    if (!label || !value) return [];
+    return [{
+      id: typeof candidate.id === 'string' && candidate.id.length > 0 ? candidate.id : randomUUID(),
+      label,
+      value,
+      status: candidate.status === 'USER_SUGGESTION' ? 'USER_SUGGESTION' as const : 'USER_INPUT' as const,
+      updatedAt: now,
+    }];
+  }).slice(0, 50);
+  return demoStore.saveOrganizationProfile(user.id, normalizedOrgNumber, inputs);
+});
+
 app.get('/api/organizations/:orgNumber/task-preferences', async (request, reply) => {
   const user = sessionUser(request);
   if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer oppgaver.' });
@@ -409,6 +441,7 @@ app.post('/api/chat', async (request, reply) => {
   try {
     const organization = await organizations.findByOrgNumber(orgNumber);
     if (!organization) return { answer: 'Velg en virksomhet før du spør.', uncertainty: 'Ingen virksomhet valgt.', sourceIds: [], followUpQuestions: [] };
+    const user = sessionUser(request);
     const [organizationObligations, availableSources, reportedRequirements] = await Promise.all([
       obligations.listForOrganization(organization),
       sourcesForOrganization('', organization.orgNumber),
@@ -419,6 +452,7 @@ app.post('/api/chat', async (request, reply) => {
       obligations: organizationObligations,
       sources: availableSources,
       reportedRequirements,
+      userInputs: user ? demoStore.organizationProfile(user.id, organization.orgNumber).inputs : [],
     });
   } catch (error) {
     if (error instanceof DatasetOrganizationError) {

@@ -102,15 +102,15 @@ forstår samtidig hvorfor statusen er ferdig eller automatisk håndtert.
 ### Spor B – virksomhetsprofil og kontekst
 
 **Eier:** frontend + API/data  
-**Status:** READY  
+**Status:** IN PROGRESS
 **Avhengigheter:** avklarte felt fra virksomhetskildene
 
-- [ ] Gjøre valgt virksomhet i topplinjen klikkbar.
-- [ ] Lage egen profilvisning med offisielle felt, kilder og hentetidspunkt.
-- [ ] Vise brukerinput separat fra registerdata.
-- [ ] La brukeren legge til egne opplysninger og foreslå korrigeringer.
-- [ ] Etablere feltstatus: `OFFICIAL`, `USER_INPUT`, `USER_SUGGESTION`, `UNKNOWN`.
-- [ ] Utvide kontekstkontrakten for losen med virksomhetsprofilen.
+- [x] Gjøre valgt virksomhet i topplinjen klikkbar.
+- [x] Lage egen profilvisning med offisielle felt, kilder og hentetidspunkt.
+- [x] Vise brukerinput separat fra registerdata.
+- [x] La brukeren legge til egne opplysninger som `USER_INPUT`.
+- [x] Etablere feltstatus: `OFFICIAL`, `USER_INPUT`, `USER_SUGGESTION`, `UNKNOWN`.
+- [x] Utvide kontekstkontrakten for losen med virksomhetsprofilen.
 - [ ] Legge til relevante åpne regnskaps- og økonomidata uten å sende store
   datasett ukritisk til modellen.
 

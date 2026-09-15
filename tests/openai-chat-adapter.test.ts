@@ -37,12 +37,14 @@ test('OpenAIChatAdapter sender rik virksomhetskontekst og verifiserer kilde-ID-e
     obligations,
     sources,
     reportedRequirements: [],
+    userInputs: [{ id: 'input-1', label: 'Regnskapssystem', value: 'Tripletex', status: 'USER_INPUT', updatedAt: '2026-09-15T10:00:00.000Z' }],
     additionalContext: [{ id: 'knowledge-1', title: 'Ekstra veiledning', text: 'Bevar kilde-ID.', trustLevel: 'OFFICIAL_GUIDANCE' }],
   });
 
   assert.equal(receivedModel, 'gpt-5.6-luna');
   assert.match(receivedInput, /Fjordgløtt Mat og Handel AS/);
   assert.match(receivedInput, /Ekstra veiledning/);
+  assert.match(receivedInput, /Tripletex/);
   assert.equal(receivedStore, false);
   assert.deepEqual(answer.sourceIds, [sources[0].id]);
   assert.match(answer.uncertainty, /kunne ikke verifiseres/);

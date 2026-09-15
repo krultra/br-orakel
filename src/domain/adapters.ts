@@ -2,6 +2,7 @@ import type {
   ChatAnswer,
   Obligation,
   Organization,
+  OrganizationUserInput,
   Source,
   TrustLevel,
   UserReportedRequirement,
@@ -45,6 +46,8 @@ export interface ChatContext {
   obligations: Obligation[];
   sources: Source[];
   reportedRequirements?: UserReportedRequirement[];
+  /** User-provided organization information; never equivalent to official register data. */
+  userInputs?: OrganizationUserInput[];
   /** Reserved for future retrieval from DuckDB/Parquet or a knowledge index. */
   additionalContext?: KnowledgeContextItem[];
 }
