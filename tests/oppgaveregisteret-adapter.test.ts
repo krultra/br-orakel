@@ -28,6 +28,8 @@ const rawForm = (overrides: Record<string, unknown> = {}) => ({
   bruksomraader: [{ navn: 'Hendelsesrapportering', kommentar: 'Ved en relevant hendelse.', hendelseskategori: { navn: 'Organisatorisk endring' } }],
   rapporteringsformer: [{ kode: 'ELEKTRONISK', verdi: 'Elektronisk' }],
   tidsbruk: { elektronisk: 15, papir: 20 },
+  nettadresser: ['https://www.testetat.no/veiledning/eksempel'],
+  datakilder: [{ navn: 'Testregisteret' }],
   ...overrides,
 });
 
@@ -61,6 +63,10 @@ test('Oppgaveregisteret-adapteren sender virksomhetsfiltre og mapper offisiell o
   assert.equal(obligation.automaticCompletionPolicy, 'none');
   assert.equal(obligation.estimatedMinutes, 15);
   assert.deepEqual(obligation.sourceLinks, ['source-oppgaveregisteret']);
+  assert.equal(obligation.guidanceLinks?.[0]?.url, 'https://www.testetat.no/veiledning/eksempel');
+  assert.equal(obligation.guidanceLinks?.[0]?.sourceLabel, 'Oppgaveregisteret');
+  assert.equal(obligation.detailInfo?.targetAudience, undefined);
+  assert.deepEqual(obligation.detailInfo?.dataSources, ['Testregisteret']);
   assert.ok(obligation.targetCriteria.includes('AS'));
   assert.ok(obligation.targetCriteria.includes('47.110'));
   assert.ok(obligation.targetCriteria.includes('arbeidsgiveransvar'));

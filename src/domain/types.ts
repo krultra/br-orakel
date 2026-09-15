@@ -196,6 +196,10 @@ export interface Obligation {
   requiredData: string[];
   attachments: string[];
   sourceLinks: string[];
+  /** Direct official guidance URLs published with the register entry. */
+  guidanceLinks?: ObligationGuidanceLink[];
+  /** Structured context from the register, kept separate from local user data. */
+  detailInfo?: ObligationDetailInfo;
   /** Curated terms in the description that can open an official concept definition. */
   conceptLinks?: ObligationConceptLink[];
   reportingForms?: string[];
@@ -233,6 +237,19 @@ export interface Obligation {
   trigger: ObligationTrigger;
   eventLabel?: string;
   registerId?: string;
+}
+
+export interface ObligationGuidanceLink {
+  title: string;
+  url: string;
+  sourceLabel: 'Oppgaveregisteret' | 'Offisiell etat';
+}
+
+export interface ObligationDetailInfo {
+  targetAudience?: string;
+  usageContexts: string[];
+  usageNotes: string[];
+  dataSources: string[];
 }
 
 export interface ObligationConceptLink {

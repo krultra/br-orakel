@@ -1,5 +1,5 @@
 import type { ObligationAdapter } from '../domain/adapters.js';
-import type { AutomaticCompletionPolicy, CompletionSource, Obligation, Organization, SubmissionMode, TrustLevel } from '../domain/types.js';
+import type { AutomaticCompletionPolicy, CompletionSource, Obligation, ObligationDetailInfo, ObligationGuidanceLink, Organization, SubmissionMode, TrustLevel } from '../domain/types.js';
 
 const DEFAULT_BASE_URL = 'https://data.brreg.no/oppgaveregisteret/api';
 const REGISTER_SOURCE_ID = 'source-oppgaveregisteret';
@@ -41,6 +41,32 @@ const nestedText = (value: unknown, key: string): string | undefined => isRecord
 const usableEventLabel = (value: string | undefined): string | undefined => value && !/^\(beskrives\)$/i.test(value.trim()) ? value : undefined;
 
 const categoryValues = (value: unknown): string[] => records(value).flatMap((item) => [text(item.verdi), text(item.kode)]).filter((value): value is string => Boolean(value));
+
+const urlValues = (value: unknown): string[] => (Array.isArray(value) ? value : []).flatMap((item) => {
+  if (typeof item === 'string') return [item.trim()];
+  return isRecord(item) ? [text(item.href) ?? text(item.url) ?? ''] : [];
+}).filter((value) => /^https?:\/\//i.test(value));
+
+const guidanceTitle = (url: string): string => {
+  const host = new URL(url).hostname.toLowerCase();
+  if (host.includes('altinn.no')) return 'Altinn – veiledning og innsending';
+  if (host.includes('skatteetaten.no')) return 'Skatteetaten – veiledning';
+  if (host.includes('brreg.no')) return 'Brønnøysundregistrene – veiledning';
+  if (host.includes('nav.no')) return 'NAV – veiledning';
+  return 'Lenke fra Oppgaveregisteret';
+};
+
+const agencyGuidanceUrl = (agency: string): string | undefined => {
+  const normalized = agency.toLocaleLowerCase('nb-NO');
+  if (normalized.includes('skatte')) return 'https://www.skatteetaten.no/bedrift-og-organisasjon/';
+  if (normalized.includes('brønnøysund') || normalized.includes('registerenheten')) return 'https://www.brreg.no/bedrift/';
+  if (normalized.includes('arbeids- og velferd') || normalized === 'nav') return 'https://www.nav.no/arbeidsgiver';
+  if (normalized.includes('arbeidstilsynet')) return 'https://www.arbeidstilsynet.no/';
+  if (normalized.includes('statistisk sentralbyrå')) return 'https://www.ssb.no/';
+  if (normalized.includes('mattilsynet')) return 'https://www.mattilsynet.no/';
+  if (normalized.includes('dsb')) return 'https://www.dsb.no/';
+  return undefined;
+};
 
 const submissionMetadata = (name: string, reportingForms: string[]): Pick<Obligation, 'submissionMode' | 'completionSource' | 'automaticCompletionPolicy'> => {
   const normalized = [name, ...reportingForms].join(' ').toLocaleLowerCase('nb-NO');
@@ -121,6 +147,15 @@ function mapObligation(raw: JsonRecord): Obligation | null {
   const officialStatus: TrustLevel = text(raw.statustype)?.toUpperCase() === 'PUBLISERT' ? 'OFFICIAL' : 'UNDER_REVIEW';
   const electronicMinutes = isRecord(raw.tidsbruk) && typeof raw.tidsbruk.elektronisk === 'number' ? raw.tidsbruk.elektronisk : undefined;
   const paperMinutes = isRecord(raw.tidsbruk) && typeof raw.tidsbruk.papir === 'number' ? raw.tidsbruk.papir : undefined;
+  const registerUrls = urlValues(raw.nettadresser);
+  const fallbackUrl = agencyGuidanceUrl(responsibleAgency);
+  const guidanceLinks: ObligationGuidanceLink[] = (registerUrls.length > 0 ? registerUrls : fallbackUrl ? [fallbackUrl] : []).map((url) => ({ title: registerUrls.length > 0 ? guidanceTitle(url) : `${responsibleAgency} – generell veiledning`, url, sourceLabel: registerUrls.length > 0 ? 'Oppgaveregisteret' : 'Offisiell etat' }));
+  const detailInfo: ObligationDetailInfo = {
+    ...(text(targetGroup.tilleggsopplysninger) ? { targetAudience: text(targetGroup.tilleggsopplysninger) } : {}),
+    usageContexts: unique(usage.map((item) => text(item.navn))),
+    usageNotes: unique(usage.map((item) => text(item.kommentar))),
+    dataSources: unique(records(raw.datakilder).map((item) => text(item.navn))),
+  };
   return {
     id: `oppgaveregisteret-${guid ?? registerId}`,
     name,
@@ -137,6 +172,8 @@ function mapObligation(raw: JsonRecord): Obligation | null {
     requiredData,
     attachments: unique([attachmentText, ...attachmentCategories]),
     sourceLinks: [REGISTER_SOURCE_ID],
+    guidanceLinks,
+    detailInfo,
     reportingForms,
     ...submission,
     status: 'not_started',
