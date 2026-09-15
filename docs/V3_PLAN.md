@@ -108,23 +108,23 @@ ha egen status og dato uten å endre den offisielle rapporteringsplikten.
 
 #### Første funksjonelle omfang
 
-- [ ] Lage `SupervisionAdapter` med mockkatalog og kildebelagte temaer.
+- [x] Lage `SupervisionAdapter` med mockkatalog, kildebelagte temaer og separat lagring av brukerregistrerte varsler.
 - [ ] Matche mulige tilsynstemaer på organisasjonsform, næringskode,
   arbeidsgiveransvar, geografi og eventuelle tillatelser når slike data finnes.
-- [ ] Vise hvorfor et tema ble foreslått: «treff på næringskode», «virksomheten
+- [x] Vise hvorfor et tema ble foreslått: «treff på næringskode», «virksomheten
   har ansatte» eller «mangler opplysning – må avklares».
-- [ ] Lage en egen arbeidsflate **Tilsyn** med kortene:
+- [x] Lage en egen arbeidsflate **Tilsyn** med kortene:
   - mulig relevante tilsynstemaer
   - hva virksomheten bør ha oversikt over
   - tilknyttede rapporteringsplikter
   - autoritative kilder og veiledere
   - «Hva vet vi ikke?»
-- [ ] La brukeren registrere et mottatt tilsynsvarsel manuelt med etat, tema,
+- [x] La brukeren registrere et mottatt tilsynsvarsel manuelt med etat, tema,
   dato/frister og kilde. Det skal være merket som brukerregistrert til det er
   verifisert.
-- [ ] La losen forklare et tilsynstema med virksomhetsprofilen som kontekst,
+- [x] La losen forklare et tilsynstema med virksomhetsprofilen som kontekst,
   men kreve kilde for faktapåstander og merke antakelser.
-- [ ] Lage én helhetlig mock-reise som kan vises i demo.
+- [x] Lage én helhetlig mock-reise som kan vises i demo.
 
 #### Kilde- og datakildeavgrensning
 

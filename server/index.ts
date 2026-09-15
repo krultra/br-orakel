@@ -40,7 +40,7 @@ const obligations = obligationProvider === 'live'
       timeoutMs: Number(process.env.OPPGAVEREGISTERET_TIMEOUT_MS ?? 10000),
     })
   : new MockObligationAdapter();
-const supervision = new MockSupervisionAdapter();
+const supervision = new MockSupervisionAdapter(demoStore);
 const sources = new MockSourceAdapter();
 const conceptMode = process.env.FDK_CONCEPT_MODE ?? 'live';
 const concepts = conceptMode === 'mock'
@@ -127,6 +127,16 @@ function normalizeTaskStatus(status: unknown): TaskPreference['status'] {
 
 function validDateKey(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function validHttpUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 2000) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 function normalizedDateMap(value: unknown): Record<string, string> | undefined {
@@ -338,6 +348,36 @@ app.get('/api/organizations/:orgNumber/supervision-themes', async (request, repl
     if (error instanceof EnhetsregisteretError) return reply.code(502).send({ code: 'ENHETSREGISTERET_UNAVAILABLE', message: 'Enhetsregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
     throw error;
   }
+});
+
+app.get('/api/organizations/:orgNumber/supervision-notices', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan lese tilsynsvarsler.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  return supervision.listNotices(orgNumber.replace(/\s/g, ''));
+});
+
+app.post('/api/organizations/:orgNumber/supervision-notices', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan registrere et tilsynsvarsel.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  const normalizedOrgNumber = orgNumber.replace(/\s/g, '');
+  const organization = await organizations.findByOrgNumber(normalizedOrgNumber);
+  if (!organization) return reply.code(404).send({ message: 'Virksomheten finnes ikke i Enhetsregisteret.' });
+  const body = request.body as Record<string, unknown> | undefined;
+  const title = typeof body?.title === 'string' ? body.title.trim().slice(0, 180) : '';
+  const responsibleAgency = typeof body?.responsibleAgency === 'string' ? body.responsibleAgency.trim().slice(0, 180) : '';
+  const description = typeof body?.description === 'string' ? body.description.trim().slice(0, 3000) : '';
+  const noticeType = body?.noticeType === 'ANNOUNCED' || body?.noticeType === 'UNANNOUNCED' || body?.noticeType === 'DOCUMENT_REVIEW' || body?.noticeType === 'UNKNOWN' ? body.noticeType : 'UNKNOWN';
+  const theme = typeof body?.theme === 'string' ? body.theme.trim().slice(0, 180) : undefined;
+  const date = validDateKey(body?.date) ? body.date : undefined;
+  const deadline = validDateKey(body?.deadline) ? body.deadline : undefined;
+  const sourceLinks = Array.isArray(body?.sourceLinks) ? body.sourceLinks.filter(validHttpUrl).slice(0, 5) : [];
+  if (title.length < 3) return reply.code(400).send({ message: 'Skriv en tittel på tilsynsvarselet.' });
+  if (responsibleAgency.length < 2) return reply.code(400).send({ message: 'Oppgi hvilken etat som har sendt varselet.' });
+  if (description.length < 3) return reply.code(400).send({ message: 'Beskriv kort hva varselet gjelder.' });
+  const notice = await supervision.createNotice(normalizedOrgNumber, { title, responsibleAgency, noticeType, ...(theme ? { theme } : {}), ...(date ? { date } : {}), ...(deadline ? { deadline } : {}), description, sourceLinks });
+  return reply.code(201).send(notice);
 });
 
 app.get('/api/organizations/:orgNumber/view-preference', async (request, reply) => {

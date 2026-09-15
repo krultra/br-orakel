@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { ChatExchange, ChatFeedback, ChatShareProposal, ContributionEvent, ContributionEventType, ContributionSummary, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, ProductFeedback, RequirementDispatch, RequirementReviewEvent, TaskPreference, UserReportedRequirement, UserRole } from '../src/domain/types.js';
+import type { ChatExchange, ChatFeedback, ChatShareProposal, ContributionEvent, ContributionEventType, ContributionSummary, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, ProductFeedback, RequirementDispatch, RequirementReviewEvent, SupervisionNotice, TaskPreference, UserReportedRequirement, UserRole } from '../src/domain/types.js';
 
 interface StoredUser extends DemoUser {
   passwordHash: string;
@@ -16,9 +16,10 @@ interface StoreFile {
   chatExchanges: ChatExchange[];
   contributionEvents: ContributionEvent[];
   productFeedback: ProductFeedback[];
+  supervisionNotices: SupervisionNotice[];
 }
 
-const emptyStore = (): StoreFile => ({ users: [], reportedRequirements: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [], contributionEvents: [], productFeedback: [] });
+const emptyStore = (): StoreFile => ({ users: [], reportedRequirements: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [], contributionEvents: [], productFeedback: [], supervisionNotices: [] });
 
 const seededCaseworkers = () => [
   {
@@ -61,6 +62,7 @@ export class DemoStore {
       this.data.chatExchanges ??= [];
       this.data.contributionEvents ??= [];
       this.data.productFeedback ??= [];
+      this.data.supervisionNotices ??= [];
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       await mkdir(path.dirname(this.filePath), { recursive: true });
@@ -224,6 +226,17 @@ export class DemoStore {
     report.updatedAt = createdAt;
     await this.persist();
     return structuredClone(report);
+  }
+
+  supervisionNotices(orgNumber: string): SupervisionNotice[] {
+    return this.data.supervisionNotices.filter((item) => item.organizationNumber === orgNumber).map((item) => structuredClone(item));
+  }
+
+  async createSupervisionNotice(input: Omit<SupervisionNotice, 'id'>): Promise<SupervisionNotice> {
+    const notice = { ...input, id: randomUUID() };
+    this.data.supervisionNotices = [notice, ...this.data.supervisionNotices];
+    await this.persist();
+    return structuredClone(notice);
   }
 
   preferences(userId: string, orgNumber: string): TaskPreference[] {

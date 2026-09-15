@@ -148,8 +148,11 @@ export interface SupervisionTheme {
 /** A concrete notice is deliberately separate from a general supervision theme. */
 export interface SupervisionNotice {
   id: string;
+  /** Organization context is required because notices are user-reported data. */
+  organizationNumber: string;
   title: string;
   responsibleAgency: string;
+  noticeType: 'ANNOUNCED' | 'UNANNOUNCED' | 'DOCUMENT_REVIEW' | 'UNKNOWN';
   theme?: string;
   date?: string;
   deadline?: string;
