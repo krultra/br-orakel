@@ -249,6 +249,8 @@ API-tilgang kan kobles inn senere.
   mellom offisielle registerdata, brukerinput og KI-forslag.
 - [x] Ha en full mock-reise for en virksomhet med én eller flere tildelinger,
   også når online-kilden ikke er tilgjengelig.
+- [x] La brukeren opprette en lokal støtteoppfølging fra en tildeling, med
+  engangsfrist eller årlig gjentakelse, og vise den i arbeidsliste og årshjul.
 - [ ] Avklare med BR om det finnes en støttet API-kontrakt og hvilke
   bruksbegrensninger som gjelder før live-integrasjon låses.
 

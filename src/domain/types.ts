@@ -193,6 +193,28 @@ export interface SupportRegistryResult {
   coverageNote: string;
 }
 
+export type SupportFollowUpType = 'apply' | 'clarify' | 'follow_up';
+
+/** A user-owned planning item derived from support context, never an official duty. */
+export interface SupportFollowUp {
+  id: string;
+  userId: string;
+  organizationNumber: string;
+  schemeName: string;
+  providerName: string;
+  sourceAwardIds: string[];
+  sourceLinks: string[];
+  taskType: SupportFollowUpType;
+  deadline?: string;
+  deadlineDates?: string[];
+  recurrence?: TaskRecurrence;
+  status: TaskStatus;
+  comment?: string;
+  trustLevel: Extract<TrustLevel, 'USER_REPORTED' | 'AI_SUGGESTION'>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Organization {
   orgNumber: string;
   name: string;
@@ -272,6 +294,9 @@ export interface Obligation {
   trigger: ObligationTrigger;
   eventLabel?: string;
   registerId?: string;
+  /** User-owned extensions can be shown in the same planning views without becoming official duties. */
+  kind?: 'reporting' | 'support_follow_up';
+  supportFollowUpId?: string;
 }
 
 export interface ObligationGuidanceLink {

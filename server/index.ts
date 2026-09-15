@@ -14,7 +14,7 @@ import { MockSupervisionAdapter } from '../src/data/supervision-adapter.js';
 import { DatasetSupportRegistryAdapter, FallbackSupportRegistryAdapter, MockSupportRegistryAdapter, SupportRegistryError } from '../src/data/support-registry-adapter.js';
 import { authorizedSourceDomains, withSourceAuthority } from '../src/data/authorized-sources.js';
 import { AuthorizedSourceRetriever } from '../src/data/authorized-source-retriever.js';
-import type { ChatShareProposal, DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
+import type { ChatShareProposal, DemoUser, Obligation, OrganizationViewPreference, SupportFollowUp, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
 import { aggregateRecurringStatus } from '../src/domain/task-status.js';
 import { redactCommunityText } from '../src/domain/community-content.js';
 import { DemoStore } from './demo-store.js';
@@ -117,7 +117,7 @@ function recurringDates(recurrence: TaskRecurrence): string[] {
   for (let year = currentYear - 1; year <= currentYear + 2; year += 1) {
     for (let month = 0; month < 12; month += 1) {
       const monthIndex = (year - start.getFullYear()) * 12 + month;
-      if (monthIndex < 0 || monthIndex % step !== start.getMonth() % step) continue;
+      if (monthIndex < 0 || (monthIndex - start.getMonth()) % step !== 0) continue;
       const date = dateForYear(year, month, Math.min(31, Math.max(1, recurrence.dayOfMonth)));
       if (date && date >= recurrence.startDate && (!recurrence.endDate || date <= recurrence.endDate)) dates.push(date);
     }
@@ -135,6 +135,23 @@ function normalizeTaskStatus(status: unknown): TaskPreference['status'] {
 
 function validDateKey(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function parseSupportRecurrence(value: unknown): TaskRecurrence | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.frequency !== 'monthly' && candidate.frequency !== 'quarterly' && candidate.frequency !== 'yearly') return undefined;
+  if (!validDateKey(candidate.startDate)) return undefined;
+  const interval = Number(candidate.interval);
+  const dayOfMonth = Number(candidate.dayOfMonth);
+  if (!Number.isInteger(interval) || interval < 1 || interval > 24 || !Number.isInteger(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) return undefined;
+  return {
+    frequency: candidate.frequency,
+    interval,
+    dayOfMonth,
+    startDate: candidate.startDate,
+    ...(validDateKey(candidate.endDate) ? { endDate: candidate.endDate } : {}),
+  };
 }
 
 function validHttpUrl(value: unknown): value is string {
@@ -375,6 +392,70 @@ app.get('/api/organizations/:orgNumber/support', async (request, reply) => {
     if (error instanceof SupportRegistryError) return reply.code(502).send({ code: 'STOTTEREGISTER_UNAVAILABLE', message: 'Støtteregisteret er ikke tilgjengelig akkurat nå.' });
     throw error;
   }
+});
+
+app.get('/api/organizations/:orgNumber/support-followups', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan lese støtteoppfølging.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  return demoStore.supportFollowUps(user.id, orgNumber.replace(/\s/g, ''));
+});
+
+app.post('/api/organizations/:orgNumber/support-followups', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan opprette støtteoppfølging.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  const normalizedOrgNumber = orgNumber.replace(/\s/g, '');
+  const body = request.body as Record<string, unknown> | undefined;
+  const schemeName = typeof body?.schemeName === 'string' ? body.schemeName.trim().slice(0, 240) : '';
+  const providerName = typeof body?.providerName === 'string' ? body.providerName.trim().slice(0, 180) : '';
+  const taskType = body?.taskType === 'apply' || body?.taskType === 'clarify' || body?.taskType === 'follow_up' ? body.taskType : null;
+  const deadline = validDateKey(body?.deadline) ? body.deadline : undefined;
+  const recurrence = parseSupportRecurrence(body?.recurrence);
+  const sourceAwardIds = Array.isArray(body?.sourceAwardIds) ? body.sourceAwardIds.filter((item): item is string => typeof item === 'string').slice(0, 50) : [];
+  const sourceLinks = Array.isArray(body?.sourceLinks) ? body.sourceLinks.filter(validHttpUrl).slice(0, 10) : [];
+  const comment = typeof body?.comment === 'string' ? body.comment.trim().slice(0, 2000) : undefined;
+  if (!schemeName || !providerName || !taskType) return reply.code(400).send({ message: 'Ordning, støttegiver og oppfølgingstype må oppgis.' });
+  if (!deadline && !recurrence) return reply.code(400).send({ message: 'Velg en frist eller gjentakelse for støtteoppfølgingen.' });
+  const followUp: Omit<SupportFollowUp, 'id'> = {
+    userId: user.id,
+    organizationNumber: normalizedOrgNumber,
+    schemeName,
+    providerName,
+    sourceAwardIds,
+    sourceLinks,
+    taskType,
+    ...(deadline ? { deadline } : {}),
+    ...(recurrence ? { recurrence, deadlineDates: recurringDates(recurrence) } : {}),
+    status: 'not_started',
+    ...(comment ? { comment } : {}),
+    trustLevel: 'USER_REPORTED',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  return reply.code(201).send(await demoStore.createSupportFollowUp(followUp));
+});
+
+app.patch('/api/organizations/:orgNumber/support-followups/:id', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan endre støtteoppfølging.' });
+  const { orgNumber, id } = request.params as { orgNumber: string; id: string };
+  const body = request.body as Record<string, unknown> | undefined;
+  const patch: Partial<Pick<SupportFollowUp, 'deadline' | 'deadlineDates' | 'recurrence' | 'status' | 'comment'>> = {};
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, 'deadline')) patch.deadline = validDateKey(body?.deadline) ? body?.deadline : undefined;
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, 'comment')) patch.comment = typeof body?.comment === 'string' ? body.comment.trim().slice(0, 2000) : undefined;
+  if (body?.status !== undefined) {
+    const status = normalizeTaskStatus(body.status);
+    if (!status) return reply.code(400).send({ message: 'Ugyldig oppfølgingsstatus.' });
+    patch.status = status;
+  }
+  if (body?.recurrence !== undefined) {
+    patch.recurrence = parseSupportRecurrence(body.recurrence);
+    if (!patch.recurrence) return reply.code(400).send({ message: 'Ugyldig gjentakelse.' });
+    patch.deadlineDates = recurringDates(patch.recurrence);
+  }
+  const updated = await demoStore.updateSupportFollowUp(user.id, orgNumber.replace(/\s/g, ''), id, patch);
+  return updated ?? reply.code(404).send({ message: 'Støtteoppfølgingen finnes ikke.' });
 });
 
 app.post('/api/organizations/:orgNumber/supervision-notices', async (request, reply) => {
@@ -678,6 +759,7 @@ app.post('/api/chat', async (request, reply) => {
     const organization = await organizations.findByOrgNumber(orgNumber);
     if (!organization) return { answer: 'Velg en virksomhet før du spør.', uncertainty: 'Ingen virksomhet valgt.', sourceIds: [], followUpQuestions: [] };
     const user = sessionUser(request);
+    const userSupportFollowUps = user ? demoStore.supportFollowUps(user.id, organization.orgNumber) : [];
     const wantsSupportContext = /støtte|tilskudd|tildeling|støtteordning|bagatellmessig/i.test(question);
     const [organizationObligations, availableSources, reportedRequirements, selectedConcept, supportResult] = await Promise.all([
       obligations.listForOrganization(organization),
@@ -736,6 +818,12 @@ app.post('/api/chat', async (request, reply) => {
           }),
           trustLevel: 'OFFICIAL' as const,
           sourceId: supportSource?.id,
+        }] : []),
+        ...(userSupportFollowUps.length > 0 ? [{
+          id: 'user-support-followups-context',
+          title: 'Brukerens lokale støtteoppfølginger',
+          text: JSON.stringify(userSupportFollowUps.map(({ id, schemeName, providerName, taskType, deadline, recurrence, status, comment, trustLevel }) => ({ id, schemeName, providerName, taskType, deadline, recurrence, status, comment, trustLevel }))),
+          trustLevel: 'USER_REPORTED' as const,
         }] : []),
         ...(selectedConcept ? [{
           id: `concept:${selectedConcept.id}`,

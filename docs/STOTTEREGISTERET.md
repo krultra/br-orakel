@@ -91,8 +91,17 @@ Brønnøysundregistrene.
   grunnlag.
 - Tydelig merking av registerdata, mockdata og dekningsforbehold.
 - Knapp som sender en begrenset og strukturert støtteoppsummering til losen.
+- Mulighet til å opprette en lokal støtteoppfølging fra en registrert tildeling.
+  Oppfølgingen kan være «Søke støtte», «Avklare støtte» eller «Følge opp
+  tidligere støtte», med engangsfrist eller årlig gjentakelse.
+- Lokale støtteoppfølginger vises i arbeidsliste og årshjul med eget merke og
+  `USER_REPORTED`-tillitsnivå. De er aldri offisielle rapporteringsplikter.
 - Fallback til mockdata når råfilene ikke er montert, slik at demoen fungerer
   uten datasettet.
+
+En tidligere tildeling gir bare et forslag til at brukeren kan planlegge en
+oppfølging. Brukeren må selv velge type og frist, og ORaKeL skal ikke antyde at
+ordningen fortsatt finnes eller at virksomheten er kvalifisert.
 
 ## Neste steg
 

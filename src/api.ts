@@ -1,4 +1,4 @@
-import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareProposal, Concept, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, SupportRegistryResult, SupervisionNotice, SupervisionTheme, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareProposal, Concept, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, SupportFollowUp, SupportRegistryResult, SupervisionNotice, SupervisionTheme, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init });
@@ -22,6 +22,9 @@ export const api = {
   supervisionThemes: (orgNumber: string) => request<SupervisionTheme[]>(`/api/organizations/${orgNumber}/supervision-themes`),
   supervisionNotices: (orgNumber: string) => request<SupervisionNotice[]>(`/api/organizations/${orgNumber}/supervision-notices`),
   support: (orgNumber: string) => request<SupportRegistryResult>(`/api/organizations/${orgNumber}/support`),
+  supportFollowUps: (orgNumber: string) => request<SupportFollowUp[]>(`/api/organizations/${orgNumber}/support-followups`),
+  createSupportFollowUp: (orgNumber: string, input: Omit<SupportFollowUp, 'id' | 'userId' | 'organizationNumber' | 'createdAt' | 'updatedAt'>) => request<SupportFollowUp>(`/api/organizations/${orgNumber}/support-followups`, { method: 'POST', body: JSON.stringify(input) }),
+  updateSupportFollowUp: (orgNumber: string, id: string, input: Partial<Pick<SupportFollowUp, 'deadline' | 'deadlineDates' | 'recurrence' | 'status' | 'comment'>>) => request<SupportFollowUp>(`/api/organizations/${orgNumber}/support-followups/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) }),
   createSupervisionNotice: (orgNumber: string, input: Omit<SupervisionNotice, 'id' | 'organizationNumber' | 'trustLevel'>) => request<SupervisionNotice>(`/api/organizations/${orgNumber}/supervision-notices`, { method: 'POST', body: JSON.stringify(input) }),
   organizationViewPreference: (orgNumber: string) => request<OrganizationViewPreference>(`/api/organizations/${orgNumber}/view-preference`),
   saveOrganizationViewPreference: (orgNumber: string, mutedBefore?: string) => request<OrganizationViewPreference>(`/api/organizations/${orgNumber}/view-preference`, { method: 'PUT', body: JSON.stringify({ mutedBefore: mutedBefore || null }) }),

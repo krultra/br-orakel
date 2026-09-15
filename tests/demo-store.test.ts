@@ -107,6 +107,44 @@ test('DemoStore kan aktivere alle dempede oppgaver for én virksomhet', async ()
   }
 });
 
+test('DemoStore lagrer støtteoppfølging per bruker og oppdaterer status', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'br-orakel-support-followup-'));
+  try {
+    const storePath = path.join(directory, 'demo-store.json');
+    const store = new DemoStore(storePath);
+    await store.init();
+    const user = await store.createUser({ username: `support-${Date.now()}`, displayName: 'Støttebruker', password: 'demo' });
+    const otherUser = await store.createUser({ username: `other-support-${Date.now()}`, displayName: 'Annen bruker', password: 'demo' });
+    const created = await store.createSupportFollowUp({
+      userId: user.id,
+      organizationNumber: '999999999',
+      schemeName: 'Mock støtteordning',
+      providerName: 'Mock-etat',
+      sourceAwardIds: ['award-1'],
+      sourceLinks: ['https://example.org/stotte'],
+      taskType: 'apply',
+      deadline: '2026-11-15',
+      deadlineDates: ['2026-11-15', '2027-11-15'],
+      recurrence: { frequency: 'yearly', interval: 1, dayOfMonth: 15, startDate: '2026-11-15' },
+      status: 'not_started',
+      trustLevel: 'USER_REPORTED',
+      createdAt: '2026-09-15T10:00:00.000Z',
+      updatedAt: '2026-09-15T10:00:00.000Z',
+    });
+    assert.equal(store.supportFollowUps(user.id, '999999999').length, 1);
+    assert.equal(store.supportFollowUps(otherUser.id, '999999999').length, 0);
+    const updated = await store.updateSupportFollowUp(user.id, '999999999', created.id, { status: 'completed', comment: 'Søknad sendt.' });
+    assert.equal(updated?.status, 'completed');
+    assert.equal(updated?.comment, 'Søknad sendt.');
+
+    const reloaded = new DemoStore(storePath);
+    await reloaded.init();
+    assert.equal(reloaded.supportFollowUps(user.id, '999999999')[0]?.status, 'completed');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('DemoStore isolerer loshistorikk per bruker og virksomhet', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'br-orakel-chat-history-'));
   try {

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { ChatExchange, ChatFeedback, ChatShareProposal, ContributionEvent, ContributionEventType, ContributionSummary, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, ProductFeedback, RequirementDispatch, RequirementReviewEvent, SupervisionNotice, TaskPreference, UserReportedRequirement, UserRole } from '../src/domain/types.js';
+import type { ChatExchange, ChatFeedback, ChatShareProposal, ContributionEvent, ContributionEventType, ContributionSummary, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, ProductFeedback, RequirementDispatch, RequirementReviewEvent, SupportFollowUp, SupervisionNotice, TaskPreference, UserReportedRequirement, UserRole } from '../src/domain/types.js';
 
 interface StoredUser extends DemoUser {
   passwordHash: string;
@@ -17,9 +17,10 @@ interface StoreFile {
   contributionEvents: ContributionEvent[];
   productFeedback: ProductFeedback[];
   supervisionNotices: SupervisionNotice[];
+  supportFollowUps: SupportFollowUp[];
 }
 
-const emptyStore = (): StoreFile => ({ users: [], reportedRequirements: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [], contributionEvents: [], productFeedback: [], supervisionNotices: [] });
+const emptyStore = (): StoreFile => ({ users: [], reportedRequirements: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [], contributionEvents: [], productFeedback: [], supervisionNotices: [], supportFollowUps: [] });
 
 const seededCaseworkers = () => [
   {
@@ -63,6 +64,7 @@ export class DemoStore {
       this.data.contributionEvents ??= [];
       this.data.productFeedback ??= [];
       this.data.supervisionNotices ??= [];
+      this.data.supportFollowUps ??= [];
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       await mkdir(path.dirname(this.filePath), { recursive: true });
@@ -237,6 +239,25 @@ export class DemoStore {
     this.data.supervisionNotices = [notice, ...this.data.supervisionNotices];
     await this.persist();
     return structuredClone(notice);
+  }
+
+  supportFollowUps(userId: string, orgNumber: string): SupportFollowUp[] {
+    return this.data.supportFollowUps.filter((item) => item.userId === userId && item.organizationNumber === orgNumber).map((item) => structuredClone(item));
+  }
+
+  async createSupportFollowUp(input: Omit<SupportFollowUp, 'id'>): Promise<SupportFollowUp> {
+    const followUp = { ...input, id: randomUUID() };
+    this.data.supportFollowUps = [followUp, ...this.data.supportFollowUps];
+    await this.persist();
+    return structuredClone(followUp);
+  }
+
+  async updateSupportFollowUp(userId: string, orgNumber: string, id: string, patch: Partial<Pick<SupportFollowUp, 'deadline' | 'deadlineDates' | 'recurrence' | 'status' | 'comment'>>): Promise<SupportFollowUp | null> {
+    const followUp = this.data.supportFollowUps.find((item) => item.id === id && item.userId === userId && item.organizationNumber === orgNumber);
+    if (!followUp) return null;
+    Object.assign(followUp, patch, { updatedAt: new Date().toISOString() });
+    await this.persist();
+    return structuredClone(followUp);
   }
 
   preferences(userId: string, orgNumber: string): TaskPreference[] {
