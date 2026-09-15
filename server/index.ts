@@ -284,6 +284,14 @@ app.get('/api/organizations/:orgNumber/task-preferences', async (request, reply)
   return demoStore.preferences(user.id, orgNumber.replace(/\s/g, ''));
 });
 
+app.post('/api/organizations/:orgNumber/task-preferences/activate-muted', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer oppgaver.' });
+  const { orgNumber } = request.params as { orgNumber: string };
+  const changed = await demoStore.activateAllMuted(user.id, orgNumber.replace(/\s/g, ''));
+  return { changed };
+});
+
 app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (request, reply) => {
   const user = sessionUser(request);
   if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer oppgaver.' });

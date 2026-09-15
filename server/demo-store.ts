@@ -122,6 +122,20 @@ export class DemoStore {
     return savedPreference;
   }
 
+  async activateAllMuted(userId: string, orgNumber: string): Promise<number> {
+    let changed = 0;
+    for (const preference of this.data.taskPreferences) {
+      if (preference.userId !== userId || preference.orgNumber !== orgNumber) continue;
+      if (!preference.muted && !preference.mutedUntil && !preference.mutedBefore) continue;
+      preference.muted = false;
+      preference.mutedUntil = undefined;
+      preference.mutedBefore = undefined;
+      changed += 1;
+    }
+    if (changed > 0) await this.persist();
+    return changed;
+  }
+
   private async persist(): Promise<void> {
     this.writeQueue = this.writeQueue.then(async () => {
       await mkdir(path.dirname(this.filePath), { recursive: true });

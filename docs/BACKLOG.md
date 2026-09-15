@@ -93,7 +93,7 @@ en beslutning eller annen leveranse.
 - [x] Implementere `isMuted` separat fra `isActivated` og `isHidden`.
 - [x] Støtte aktivering av én dempet oppgave.
 - [x] Støtte datofilter som demper alle historiske oppgaver ved ny virksomhet.
-- [ ] Støtte aktivering av alle dempede oppgaver samlet.
+- [x] Støtte aktivering av alle dempede oppgaver samlet.
 
 **Akseptanse:** A-melding som ikke er manuelt markert ferdig blir ikke vist som
 en gul manuell restanse dersom den er merket som systeminnsending. Brukeren
