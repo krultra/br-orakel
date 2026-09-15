@@ -144,9 +144,9 @@ kan se dem. Historiske svar viser hvilke kilder som faktisk ble brukt.
 - [x] Implementere en vedlikeholdbar allowlist for autoritative domener.
 - [x] Klassifisere kilder som `AUTHORITATIVE`, `OFFICIAL_GUIDANCE`,
   `DISCOVERY` eller `UNVERIFIED`.
-- [ ] La losen hente relevante sider online når spørsmålet krever det.
+- [x] La losen hente et begrenset antall relevante sider online når spørsmålet krever det.
 - [x] Ikke lagre en lokal kopi av all veiledning som standard.
-- [ ] Lagre bare metadata, kilde-URL, utdrag brukt i svaret og tidspunkt.
+- [x] Lagre bare metadata, kilde-URL, utdrag brukt i svaret og tidspunkt.
 - [x] Avvise eller tydelig merke kilder utenfor allowlisten.
 - [x] Vise kildegrunnlag og usikkerhet i hvert svar.
 

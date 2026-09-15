@@ -10,6 +10,7 @@ import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/dat
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 import { authorizedSourceDomains, withSourceAuthority } from '../src/data/authorized-sources.js';
+import { AuthorizedSourceRetriever } from '../src/data/authorized-source-retriever.js';
 import type { DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
 import { aggregateRecurringStatus } from '../src/domain/task-status.js';
 import { DemoStore } from './demo-store.js';
@@ -36,6 +37,12 @@ const obligations = obligationProvider === 'live'
     })
   : new MockObligationAdapter();
 const sources = new MockSourceAdapter();
+const sourceRetriever = new AuthorizedSourceRetriever({
+  timeoutMs: Number(process.env.SOURCE_RETRIEVAL_TIMEOUT_MS ?? 2500),
+  maxSources: Number(process.env.SOURCE_RETRIEVAL_MAX_SOURCES ?? 2),
+  maxBytesPerSource: Number(process.env.SOURCE_RETRIEVAL_MAX_BYTES ?? 500000),
+  maxCharsPerSource: Number(process.env.SOURCE_RETRIEVAL_MAX_CHARS ?? 8000),
+});
 const requirements = new MockRequirementAdapter();
 const aiProvider = process.env.AI_PROVIDER ?? 'mock';
 const chat = aiProvider === 'openai'
@@ -478,12 +485,17 @@ app.post('/api/chat', async (request, reply) => {
       sourcesForOrganization('', organization.orgNumber),
       requirements.list(),
     ]);
+    const retrievedContext = process.env.SOURCE_RETRIEVAL_ENABLED === 'false'
+      ? []
+      : await sourceRetriever.retrieve(question, availableSources);
+    const retrievedBySourceId = new Map(retrievedContext.flatMap((item) => item.sourceId ? [[item.sourceId, item.text] as const] : []));
     const answer = await chat.answer(question, {
       organization,
       obligations: organizationObligations,
       sources: availableSources,
       reportedRequirements,
       userInputs: user ? demoStore.organizationProfile(user.id, organization.orgNumber).inputs : [],
+      additionalContext: retrievedContext,
     });
     if (!user) return answer;
     const saved = await demoStore.saveChatExchange({
@@ -493,7 +505,10 @@ app.post('/api/chat', async (request, reply) => {
       answer: answer.answer,
       uncertainty: answer.uncertainty,
       sourceIds: answer.sourceIds,
-      sources: availableSources.filter((source) => answer.sourceIds.includes(source.id)),
+      sources: availableSources.filter((source) => answer.sourceIds.includes(source.id)).map((source) => {
+        const retrievedExcerpt = retrievedBySourceId.get(source.id);
+        return { ...source, ...(retrievedExcerpt ? { relevantExcerpt: retrievedExcerpt, retrievedAt: new Date().toISOString() } : {}) };
+      }),
       followUpQuestions: answer.followUpQuestions,
       createdAt: new Date().toISOString(),
     });

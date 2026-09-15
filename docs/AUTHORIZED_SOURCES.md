@@ -16,10 +16,11 @@ klassifisert som `UNVERIFIED`. De skal aldri omtales som autoritative.
 
 ## Dagens avgrensning
 
-Klassifiseringen og kildevisningen er implementert. Online retrieval er ennå
-ikke automatisk koblet til hvert losspørsmål. Neste steg er å hente relevante
-sider med en timeout og innholdsgrense, kun etter at URL-en er godkjent av
-allowlisten, og sende bare relevant utdrag videre til modellen.
+Klassifisering, kildevisning og et begrenset online retrieval-steg er
+implementert. Før hvert losspørsmål velges maksimalt et lite antall relevante
+allowlistede kilder. Innhenting har timeout og byte-/tegngrense, og HTML
+reduseres til tekst før utdraget sendes videre til modellen. Feil ved en kilde
+gir fallback til eksisterende kildeutdrag.
 
 OpenAI Responses API har web search med `allowed_domains`. Det kan vurderes som
 en senere retrieval-provider, men kildepolicyen skal fortsatt ligge i ORaKeL
