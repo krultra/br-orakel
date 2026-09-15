@@ -4,11 +4,12 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
-import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
+import { MockChatAdapter, MockConceptAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
 import { EnhetsregisteretAdapter, EnhetsregisteretError } from '../src/data/enhetsregisteret-adapter.js';
 import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/data/dataset-organization-adapter.js';
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
+import { FallbackConceptAdapter, FdkConceptAdapter, FdkConceptError } from '../src/data/fdk-concept-adapter.js';
 import { authorizedSourceDomains, withSourceAuthority } from '../src/data/authorized-sources.js';
 import { AuthorizedSourceRetriever } from '../src/data/authorized-source-retriever.js';
 import type { ChatShareProposal, DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
@@ -38,6 +39,17 @@ const obligations = obligationProvider === 'live'
     })
   : new MockObligationAdapter();
 const sources = new MockSourceAdapter();
+const conceptMode = process.env.FDK_CONCEPT_MODE ?? 'live';
+const concepts = conceptMode === 'mock'
+  ? new MockConceptAdapter()
+  : new FallbackConceptAdapter(
+      new FdkConceptAdapter({
+        searchUrl: process.env.FDK_CONCEPT_SEARCH_API,
+        resourceUrl: process.env.FDK_CONCEPT_RESOURCE_API,
+        timeoutMs: Number(process.env.FDK_CONCEPT_TIMEOUT_MS ?? 5000),
+      }),
+      new MockConceptAdapter(),
+    );
 const sourceRetriever = new AuthorizedSourceRetriever({
   timeoutMs: Number(process.env.SOURCE_RETRIEVAL_TIMEOUT_MS ?? 2500),
   maxSources: Number(process.env.SOURCE_RETRIEVAL_MAX_SOURCES ?? 2),
@@ -184,7 +196,7 @@ const sourcesForOrganization = async (query: string, orgNumber?: string) => {
 
 await app.register(cors, { origin: true });
 
-app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider, obligationProvider }));
+app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider, obligationProvider, conceptProvider: conceptMode === 'mock' ? 'mock' : 'fdk+mock-fallback' }));
 
 app.get('/api/auth/me', async (request, reply) => {
   const user = sessionUser(request);
@@ -423,6 +435,40 @@ app.put('/api/organizations/:orgNumber/task-preferences/:obligationId', async (r
   return demoStore.savePreference(user.id, preference);
 });
 
+app.get('/api/concepts', async (request, reply) => {
+  const { q = '', limit = '10' } = request.query as { q?: string; limit?: string };
+  if (!q.trim()) return [];
+  try {
+    return await concepts.search(q, Number(limit));
+  } catch (error) {
+    if (error instanceof FdkConceptError) return reply.code(502).send({ code: 'CONCEPTS_UNAVAILABLE', message: 'Begrepskatalogen er ikke tilgjengelig akkurat nå.' });
+    throw error;
+  }
+});
+
+app.get('/api/concepts/by-uri', async (request, reply) => {
+  const { uri = '' } = request.query as { uri?: string };
+  if (!uri.trim()) return reply.code(400).send({ message: 'Begreps-URI mangler.' });
+  try {
+    const concept = await concepts.getByUri(uri);
+    return concept ?? reply.code(404).send({ message: 'Begrepet finnes ikke i begrepskatalogen.' });
+  } catch (error) {
+    if (error instanceof FdkConceptError) return reply.code(502).send({ code: 'CONCEPTS_UNAVAILABLE', message: 'Begrepskatalogen er ikke tilgjengelig akkurat nå.' });
+    throw error;
+  }
+});
+
+app.get('/api/concepts/:id', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  try {
+    const concept = await concepts.getById(id);
+    return concept ?? reply.code(404).send({ message: 'Begrepet finnes ikke i begrepskatalogen.' });
+  } catch (error) {
+    if (error instanceof FdkConceptError) return reply.code(502).send({ code: 'CONCEPTS_UNAVAILABLE', message: 'Begrepskatalogen er ikke tilgjengelig akkurat nå.' });
+    throw error;
+  }
+});
+
 app.get('/api/sources', async (request) => {
   const { q = '', orgNumber } = request.query as { q?: string; orgNumber?: string };
   return sourcesForOrganization(q, orgNumber);
@@ -516,17 +562,28 @@ app.delete('/api/chat/history/:id', async (request, reply) => {
 });
 
 app.post('/api/chat', async (request, reply) => {
-  const { question, orgNumber = '' } = request.body as { question?: string; orgNumber?: string };
+  const { question, orgNumber = '', conceptId } = request.body as { question?: string; orgNumber?: string; conceptId?: string };
   if (!question?.trim()) return reply.code(400).send({ message: 'Spørsmålet kan ikke være tomt.' });
   try {
     const organization = await organizations.findByOrgNumber(orgNumber);
     if (!organization) return { answer: 'Velg en virksomhet før du spør.', uncertainty: 'Ingen virksomhet valgt.', sourceIds: [], followUpQuestions: [] };
     const user = sessionUser(request);
-    const [organizationObligations, availableSources, reportedRequirements] = await Promise.all([
+    const [organizationObligations, availableSources, reportedRequirements, selectedConcept] = await Promise.all([
       obligations.listForOrganization(organization),
       sourcesForOrganization('', organization.orgNumber),
       requirements.list(),
+      typeof conceptId === 'string' && conceptId.trim() ? concepts.getById(conceptId) : Promise.resolve(null),
     ]);
+    const conceptSource = selectedConcept ? withSourceAuthority({
+      id: `concept-source:${selectedConcept.id}`,
+      title: `Begrep: ${selectedConcept.term} – ${selectedConcept.publisher}`,
+      url: selectedConcept.sourceUrl,
+      sourceType: 'guidance' as const,
+      officiality: selectedConcept.trustLevel,
+      retrievedAt: selectedConcept.retrievedAt,
+      relevantExcerpt: selectedConcept.definition ?? 'Definisjon mangler i treffet.',
+    }) : null;
+    const evidenceSources = conceptSource ? [...availableSources, conceptSource] : availableSources;
     const retrievedContext = process.env.SOURCE_RETRIEVAL_ENABLED === 'false'
       ? []
       : await sourceRetriever.retrieve(question, availableSources);
@@ -534,10 +591,21 @@ app.post('/api/chat', async (request, reply) => {
     const answer = await chat.answer(question, {
       organization,
       obligations: organizationObligations,
-      sources: availableSources,
+      sources: evidenceSources,
       reportedRequirements,
       userInputs: user ? demoStore.organizationProfile(user.id, organization.orgNumber).inputs : [],
-      additionalContext: retrievedContext,
+      // A concept is added only when the user deliberately asks about one;
+      // the complete public concept catalogue is never sent to the model.
+      additionalContext: [
+        ...retrievedContext,
+        ...(selectedConcept ? [{
+          id: `concept:${selectedConcept.id}`,
+          title: `Begrep: ${selectedConcept.term}`,
+          text: `${selectedConcept.definition ?? 'Definisjon mangler i treffet.'} Utgiver: ${selectedConcept.publisher}. Kilde: ${selectedConcept.sourceUrl}`,
+          trustLevel: selectedConcept.trustLevel,
+          sourceId: conceptSource?.id,
+        }] : []),
+      ],
     });
     if (!user) return answer;
     const saved = await demoStore.saveChatExchange({
@@ -547,7 +615,7 @@ app.post('/api/chat', async (request, reply) => {
       answer: answer.answer,
       uncertainty: answer.uncertainty,
       sourceIds: answer.sourceIds,
-      sources: availableSources.filter((source) => answer.sourceIds.includes(source.id)).map((source) => {
+      sources: evidenceSources.filter((source) => answer.sourceIds.includes(source.id)).map((source) => {
         const retrievedExcerpt = retrievedBySourceId.get(source.id);
         return { ...source, ...(retrievedExcerpt ? { relevantExcerpt: retrievedExcerpt, retrievedAt: new Date().toISOString() } : {}) };
       }),

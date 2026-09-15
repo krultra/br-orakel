@@ -1,4 +1,4 @@
-import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareProposal, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareProposal, Concept, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init });
@@ -35,5 +35,8 @@ export const api = {
   taskPreferences: (orgNumber: string) => request<TaskPreference[]>(`/api/organizations/${orgNumber}/task-preferences`),
   activateAllMuted: (orgNumber: string) => request<{ changed: number }>(`/api/organizations/${orgNumber}/task-preferences/activate-muted`, { method: 'POST' }),
   saveTaskPreference: (orgNumber: string, obligationId: string, preference: TaskPreferenceUpdate) => request<TaskPreference>(`/api/organizations/${orgNumber}/task-preferences/${encodeURIComponent(obligationId)}`, { method: 'PUT', body: JSON.stringify(preference) }),
-  chat: (question: string, orgNumber: string, signal?: AbortSignal) => request<ChatAnswer>('/api/chat', { method: 'POST', body: JSON.stringify({ question, orgNumber }), signal }),
+  concepts: (query: string, limit = 8) => request<Concept[]>(`/api/concepts?q=${encodeURIComponent(query)}&limit=${limit}`),
+  concept: (id: string) => request<Concept>(`/api/concepts/${encodeURIComponent(id)}`),
+  conceptByUri: (uri: string) => request<Concept>(`/api/concepts/by-uri?uri=${encodeURIComponent(uri)}`),
+  chat: (question: string, orgNumber: string, signal?: AbortSignal, conceptId?: string) => request<ChatAnswer>('/api/chat', { method: 'POST', body: JSON.stringify({ question, orgNumber, ...(conceptId ? { conceptId } : {}) }), signal }),
 };

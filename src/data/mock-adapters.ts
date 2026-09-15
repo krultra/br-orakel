@@ -1,5 +1,6 @@
-import type { ChatAdapter, ChatContext, ObligationAdapter, OrganizationAdapter, RequirementAdapter, SourceAdapter } from '../domain/adapters.js';
-import type { Obligation, Organization, Source, UserReportedRequirement } from '../domain/types.js';
+import type { ChatAdapter, ChatContext, ConceptAdapter, ObligationAdapter, OrganizationAdapter, RequirementAdapter, SourceAdapter } from '../domain/adapters.js';
+import type { Concept, Obligation, Organization, Source, UserReportedRequirement } from '../domain/types.js';
+import { mockConcepts } from './mock-concepts.js';
 import { mockObligations, mockOrganization, mockReports, mockSources } from './mock-data.js';
 
 export class MockOrganizationAdapter implements OrganizationAdapter {
@@ -30,6 +31,27 @@ export class MockSourceAdapter implements SourceAdapter {
 
   async getByIds(ids: string[]): Promise<Source[]> {
     return mockSources.filter((item) => ids.includes(item.id));
+  }
+}
+
+export class MockConceptAdapter implements ConceptAdapter {
+  async search(query: string, limit = 10): Promise<Concept[]> {
+    const normalized = query.trim().toLocaleLowerCase('nb-NO');
+    if (!normalized) return [];
+    return mockConcepts
+      .filter((concept) => `${concept.term} ${concept.alternativeTerms.join(' ')} ${concept.definition ?? ''} ${concept.subject ?? ''}`.toLocaleLowerCase('nb-NO').includes(normalized))
+      .slice(0, Math.max(1, Math.min(limit, 20)))
+      .map((concept) => structuredClone(concept));
+  }
+
+  async getById(id: string): Promise<Concept | null> {
+    const concept = mockConcepts.find((item) => item.id === id);
+    return concept ? structuredClone(concept) : null;
+  }
+
+  async getByUri(uri: string): Promise<Concept | null> {
+    const concept = mockConcepts.find((item) => item.uri === uri);
+    return concept ? structuredClone(concept) : null;
   }
 }
 

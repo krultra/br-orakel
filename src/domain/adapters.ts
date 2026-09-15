@@ -1,5 +1,6 @@
 import type {
   ChatAnswer,
+  Concept,
   Obligation,
   Organization,
   OrganizationUserInput,
@@ -20,6 +21,12 @@ export interface ObligationAdapter {
 export interface SourceAdapter {
   search(query: string): Promise<Source[]>;
   getByIds(ids: string[]): Promise<Source[]>;
+}
+
+export interface ConceptAdapter {
+  search(query: string, limit?: number): Promise<Concept[]>;
+  getById(id: string): Promise<Concept | null>;
+  getByUri(uri: string): Promise<Concept | null>;
 }
 
 export interface RequirementAdapter {

@@ -109,6 +109,26 @@ export interface Source {
   relevantExcerpt: string;
 }
 
+/**
+ * A concept from the public Felles datakatalog. Concepts are vocabulary
+ * entries, not reporting obligations, and therefore have their own contract.
+ */
+export interface Concept {
+  id: string;
+  uri: string;
+  term: string;
+  alternativeTerms: string[];
+  definition?: string;
+  publisher: string;
+  publisherOrgNumber?: string;
+  status?: string;
+  subject?: string;
+  relatedConcepts: Array<{ uri: string; relation: string }>;
+  sourceUrl: string;
+  trustLevel: Extract<TrustLevel, 'OFFICIAL_GUIDANCE' | 'UNDER_REVIEW'>;
+  retrievedAt: string;
+}
+
 export interface Organization {
   orgNumber: string;
   name: string;
