@@ -11,8 +11,9 @@ import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adap
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 import { authorizedSourceDomains, withSourceAuthority } from '../src/data/authorized-sources.js';
 import { AuthorizedSourceRetriever } from '../src/data/authorized-source-retriever.js';
-import type { DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
+import type { ChatShareProposal, DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
 import { aggregateRecurringStatus } from '../src/domain/task-status.js';
+import { redactCommunityText } from '../src/domain/community-content.js';
 import { DemoStore } from './demo-store.js';
 
 const app = Fastify({ logger: true });
@@ -188,6 +189,20 @@ app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, o
 app.get('/api/auth/me', async (request, reply) => {
   const user = sessionUser(request);
   return user ?? reply.code(401).send({ message: 'Du er ikke logget inn.' });
+});
+
+app.get('/api/me/contributions', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan se bidragspoeng.' });
+  return demoStore.contributionSummary(user.id);
+});
+
+app.post('/api/feedback', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan sende tilbakemelding.' });
+  const message = (request.body as { message?: unknown })?.message;
+  if (typeof message !== 'string' || message.trim().length < 3) return reply.code(400).send({ message: 'Skriv minst noen ord om forbedringsforslaget.' });
+  return reply.code(201).send(await demoStore.saveProductFeedback(user.id, message));
 });
 
 app.post('/api/auth/register', async (request, reply) => {
@@ -423,7 +438,7 @@ app.get('/api/reported-requirements', async () => requirements.list());
 app.post('/api/reported-requirements', async (request, reply) => {
   const body = request.body as any;
   if (!body?.title || !body?.description) return reply.code(400).send({ message: 'Tittel og beskrivelse er obligatorisk.' });
-  return reply.code(201).send(await requirements.create({
+  const created = await requirements.create({
     title: body.title,
     description: body.description,
     reportedBy: body.reportedBy || 'Demo-bruker',
@@ -436,7 +451,10 @@ app.post('/api/reported-requirements', async (request, reply) => {
     aiSuggestions: body.aiSuggestions ?? ['Avklar kilden og om innspillet allerede finnes i Oppgaveregisteret.'],
     confidence: 0.42,
     reviewStatus: 'new',
-  }));
+  });
+  const user = sessionUser(request);
+  if (user) await demoStore.addContributionEvent(user.id, { type: 'requirement_reported', points: 3, referenceId: created.id, description: 'Sendte inn et mulig manglende rapporteringskrav.' });
+  return reply.code(201).send(created);
 });
 
 app.patch('/api/reported-requirements/:id', async (request, reply) => {
@@ -463,6 +481,30 @@ app.patch('/api/chat/history/:id', async (request, reply) => {
   if (feedback !== undefined && feedback !== 'useful' && feedback !== 'not_useful') return reply.code(400).send({ message: 'Ugyldig tilbakemelding.' });
   const updated = await demoStore.updateChatFeedback(user.id, id, feedback as 'useful' | 'not_useful' | undefined);
   return updated ? updated : reply.code(404).send({ message: 'Losutvekslingen finnes ikke.' });
+});
+
+app.patch('/api/chat/history/:id/share', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan dele et los-svar.' });
+  const { id } = request.params as { id: string };
+  const exchange = demoStore.chatExchange(user.id, id);
+  if (!exchange) return reply.code(404).send({ message: 'Losutvekslingen finnes ikke.' });
+  const status = (request.body as { status?: unknown })?.status;
+  if (status !== 'consented' && status !== 'withdrawn') return reply.code(400).send({ message: 'Ugyldig delingsstatus.' });
+  if (status === 'withdrawn') {
+    const updated = await demoStore.updateChatShare(user.id, id, { status: 'withdrawn', withdrawnAt: new Date().toISOString() });
+    return updated ? updated : reply.code(409).send({ message: 'Svar må være markert som nyttig før deling kan endres.' });
+  }
+  const organization = await organizations.findByOrgNumber(exchange.orgNumber);
+  if (!organization) return reply.code(502).send({ message: 'Virksomheten kunne ikke lastes for anonymisering.' });
+  const share: ChatShareProposal = {
+    status: 'consented',
+    redactedQuestion: redactCommunityText(exchange.question, [organization.orgNumber, organization.name, user.displayName]),
+    redactedAnswer: redactCommunityText(exchange.answer, [organization.orgNumber, organization.name, user.displayName]),
+    consentedAt: new Date().toISOString(),
+  };
+  const updated = await demoStore.updateChatShare(user.id, id, share);
+  return updated ? updated : reply.code(409).send({ message: 'Svar må være markert som nyttig før deling kan endres.' });
 });
 
 app.delete('/api/chat/history/:id', async (request, reply) => {
@@ -512,7 +554,7 @@ app.post('/api/chat', async (request, reply) => {
       followUpQuestions: answer.followUpQuestions,
       createdAt: new Date().toISOString(),
     });
-    return { ...answer, exchangeId: saved.id };
+    return { ...answer, exchangeId: saved.id, shareStatus: saved.share?.status };
   } catch (error) {
     if (error instanceof DatasetOrganizationError) {
       return reply.code(502).send({ code: 'DATASET_UNAVAILABLE', message: 'Det lokale hackathon-datasettet er ikke tilgjengelig akkurat nå.' });

@@ -84,3 +84,36 @@ test('DemoStore isolerer loshistorikk per bruker og virksomhet', async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('DemoStore foreslår anonymisert FAQ-bidrag og gir hendelsesbaserte poeng', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'br-orakel-contributions-'));
+  try {
+    const store = new DemoStore(path.join(directory, 'demo-store.json'));
+    await store.init();
+    const user = await store.createUser({ username: `points-${Date.now()}`, displayName: 'Poengbruker', password: 'demo' });
+    const exchange = await store.saveChatExchange({
+      userId: user.id,
+      orgNumber: '999999999',
+      question: 'Hva gjelder?',
+      answer: 'Et veiledende svar.',
+      uncertainty: 'Kontroller kilden.',
+      sourceIds: [],
+      sources: [],
+      followUpQuestions: [],
+      createdAt: new Date().toISOString(),
+    });
+    const useful = await store.updateChatFeedback(user.id, exchange.id, 'useful');
+    assert.equal(useful?.share?.status, 'proposed');
+    assert.equal(store.contributionSummary(user.id).points, 1);
+    const shared = await store.updateChatShare(user.id, exchange.id, { status: 'consented', redactedQuestion: 'Hva gjelder?', redactedAnswer: 'Et veiledende svar.' });
+    assert.equal(shared?.share?.status, 'consented');
+    assert.equal(store.contributionSummary(user.id).points, 6);
+    await store.updateChatShare(user.id, exchange.id, { status: 'consented', redactedQuestion: 'Hva gjelder?', redactedAnswer: 'Et veiledende svar.' });
+    assert.equal(store.contributionSummary(user.id).points, 6);
+    const feedback = await store.saveProductFeedback(user.id, 'Gjør oppgavefiltreringen enda enklere.');
+    assert.equal(feedback.message, 'Gjør oppgavefiltreringen enda enklere.');
+    assert.equal(store.contributionSummary(user.id).points, 8);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

@@ -1,4 +1,4 @@
-import type { ChatAnswer, ChatExchange, ChatFeedback, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareProposal, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init });
@@ -24,7 +24,10 @@ export const api = {
   saveOrganizationProfile: (orgNumber: string, inputs: OrganizationUserInput[]) => request<OrganizationProfile>(`/api/organizations/${orgNumber}/profile`, { method: 'PUT', body: JSON.stringify({ inputs }) }),
   chatHistory: (orgNumber: string, query = '') => request<ChatExchange[]>(`/api/chat/history?orgNumber=${encodeURIComponent(orgNumber)}&q=${encodeURIComponent(query)}`),
   updateChatFeedback: (id: string, feedback?: ChatFeedback) => request<ChatExchange>(`/api/chat/history/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ feedback }) }),
+  updateChatShare: (id: string, share: ChatShareProposal) => request<ChatExchange>(`/api/chat/history/${encodeURIComponent(id)}/share`, { method: 'PATCH', body: JSON.stringify(share) }),
   deleteChatExchange: (id: string) => request<{ ok: true }>(`/api/chat/history/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  contributionSummary: () => request<ContributionSummary>('/api/me/contributions'),
+  createFeedback: (message: string) => request<{ id: string; createdAt: string }>('/api/feedback', { method: 'POST', body: JSON.stringify({ message }) }),
   sources: (query = '', orgNumber?: string) => request<Source[]>(`/api/sources?q=${encodeURIComponent(query)}${orgNumber ? `&orgNumber=${encodeURIComponent(orgNumber)}` : ''}`),
   reports: () => request<UserReportedRequirement[]>('/api/reported-requirements'),
   createReport: (input: Partial<UserReportedRequirement>) => request<UserReportedRequirement>('/api/reported-requirements', { method: 'POST', body: JSON.stringify(input) }),

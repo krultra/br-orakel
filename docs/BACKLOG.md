@@ -198,16 +198,23 @@ På mobil bør dette bli en enkel navigasjon med én hovedvisning om gangen.
 ### Spor G – bidrag, poeng og nivåer
 
 **Eier:** produkt + API + frontend  
-**Status:** BLOCKED til historikk og delingssamtykke er på plass
+**Status:** IN PROGRESS
 
-- [ ] Lage poenghendelser for forslag, nyttige svar, FAQ-bidrag og
-  saksbehandlerbekreftelse.
-- [ ] Foreslå nivåene: «Lokal bidragsyter», «Lokal skjemaguide» og
+- [x] Lage poenghendelser for forslag, nyttige svar, FAQ-bidrag og
+  forbedringsforslag. Saksbehandlerbekreftelse krever modereringsflyten etter
+  v2.0.
+- [x] Foreslå nivåene: «Lokal bidragsyter», «Lokal skjemaguide» og
   «Lokal skjemaguru».
-- [ ] Vise personlig fremgang før offentlig toppliste.
+- [x] Vise personlig fremgang før offentlig toppliste.
+- [x] La brukeren samtykke aktivt til anonymisert FAQ-forslag etter nyttig
+  los-feedback, og trekke samtykket tilbake.
 - [ ] Gjøre toppliste og offentlig visningsnavn frivillig.
 - [ ] Begrense poeng per type aktivitet per tidsperiode.
 - [ ] Vurdere «månedens bidragsyter» etter at vi har ekte bruksmønster.
+
+Poeng- og delingsimplementasjonen er beskrevet i
+[CONTRIBUTIONS.md](CONTRIBUTIONS.md). Saksbehandlerkø og moderering er fortsatt
+bevisst utsatt til etter v2.0.
 
 Gamification bør belønne kvalitet, ikke bare mengde. Poeng for et forslag bør
 derfor øke når innspillet blir vurdert, tatt i bruk eller koblet til en

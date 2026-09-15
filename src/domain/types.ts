@@ -209,9 +209,20 @@ export interface ChatAnswer {
   followUpQuestions: string[];
   /** Set by the application after a successful answer is stored. */
   exchangeId?: string;
+  shareStatus?: ChatShareStatus;
 }
 
 export type ChatFeedback = 'useful' | 'not_useful';
+export type ChatShareStatus = 'proposed' | 'consented' | 'withdrawn';
+
+export interface ChatShareProposal {
+  status: ChatShareStatus;
+  /** Text prepared for a community FAQ; organization identifiers are removed. */
+  redactedQuestion?: string;
+  redactedAnswer?: string;
+  consentedAt?: string;
+  withdrawnAt?: string;
+}
 
 export interface ChatExchangeSource {
   id: string;
@@ -234,6 +245,36 @@ export interface ChatExchange {
   sources: ChatExchangeSource[];
   followUpQuestions: string[];
   feedback?: ChatFeedback;
+  share?: ChatShareProposal;
+  createdAt: string;
+}
+
+export type ContributionEventType = 'useful_answer' | 'faq_contribution' | 'requirement_reported' | 'feedback_submitted';
+
+export interface ContributionEvent {
+  id: string;
+  userId: string;
+  type: ContributionEventType;
+  points: number;
+  referenceId?: string;
+  description: string;
+  createdAt: string;
+}
+
+export type ContributionLevel = 'Lokal bidragsyter' | 'Lokal skjemaguide' | 'Lokal skjemaguru';
+
+export interface ContributionSummary {
+  points: number;
+  level: ContributionLevel;
+  nextLevel?: ContributionLevel;
+  pointsToNextLevel?: number;
+  events: ContributionEvent[];
+}
+
+export interface ProductFeedback {
+  id: string;
+  userId: string;
+  message: string;
   createdAt: string;
 }
 

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { ChatExchange, ChatFeedback, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, TaskPreference, UserRole } from '../src/domain/types.js';
+import type { ChatExchange, ChatFeedback, ChatShareProposal, ContributionEvent, ContributionEventType, ContributionSummary, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, ProductFeedback, TaskPreference, UserRole } from '../src/domain/types.js';
 
 interface StoredUser extends DemoUser {
   passwordHash: string;
@@ -13,9 +13,11 @@ interface StoreFile {
   organizationViewPreferences: OrganizationViewPreference[];
   organizationProfiles: OrganizationProfile[];
   chatExchanges: ChatExchange[];
+  contributionEvents: ContributionEvent[];
+  productFeedback: ProductFeedback[];
 }
 
-const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [] });
+const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [], contributionEvents: [], productFeedback: [] });
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
@@ -42,6 +44,8 @@ export class DemoStore {
       this.data.organizationViewPreferences ??= [];
       this.data.organizationProfiles ??= [];
       this.data.chatExchanges ??= [];
+      this.data.contributionEvents ??= [];
+      this.data.productFeedback ??= [];
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       await mkdir(path.dirname(this.filePath), { recursive: true });
@@ -154,6 +158,10 @@ export class DemoStore {
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
+  chatExchange(userId: string, exchangeId: string): ChatExchange | null {
+    return this.data.chatExchanges.find((item) => item.userId === userId && item.id === exchangeId) ?? null;
+  }
+
   async saveChatExchange(exchange: Omit<ChatExchange, 'id'>): Promise<ChatExchange> {
     const savedExchange: ChatExchange = { ...exchange, id: randomUUID() };
     this.data.chatExchanges.push(savedExchange);
@@ -164,9 +172,61 @@ export class DemoStore {
   async updateChatFeedback(userId: string, exchangeId: string, feedback: ChatFeedback | undefined): Promise<ChatExchange | null> {
     const exchange = this.data.chatExchanges.find((item) => item.id === exchangeId && item.userId === userId);
     if (!exchange) return null;
+    const wasUseful = exchange.feedback === 'useful';
     exchange.feedback = feedback;
+    if (feedback === 'useful' && !wasUseful) {
+      await this.addContributionEvent(userId, { type: 'useful_answer', points: 1, referenceId: exchange.id, description: 'Ga nyttig tilbakemelding på et los-svar.' });
+      if (!exchange.share || exchange.share.status === 'withdrawn') exchange.share = { status: 'proposed' };
+    }
     await this.persist();
     return exchange;
+  }
+
+  async updateChatShare(userId: string, exchangeId: string, share: ChatShareProposal): Promise<ChatExchange | null> {
+    const exchange = this.data.chatExchanges.find((item) => item.id === exchangeId && item.userId === userId);
+    if (!exchange || exchange.feedback !== 'useful') return null;
+    const wasConsented = exchange.share?.status === 'consented';
+    exchange.share = share;
+    if (share.status === 'consented' && !wasConsented) {
+      await this.addContributionEvent(userId, { type: 'faq_contribution', points: 5, referenceId: exchange.id, description: 'Samtykket til at et anonymisert los-svar kan vurderes som FAQ-bidrag.' });
+    }
+    await this.persist();
+    return exchange;
+  }
+
+  async addContributionEvent(userId: string, input: { type: ContributionEventType; points: number; referenceId?: string; description: string }): Promise<ContributionEvent> {
+    const existing = this.data.contributionEvents.find((event) => event.userId === userId && event.type === input.type && event.referenceId && input.referenceId && event.referenceId === input.referenceId);
+    if (existing) return existing;
+    const event: ContributionEvent = { ...input, id: randomUUID(), userId, createdAt: new Date().toISOString() };
+    this.data.contributionEvents.push(event);
+    await this.persist();
+    return event;
+  }
+
+  contributionSummary(userId: string): ContributionSummary {
+    const events = this.data.contributionEvents.filter((event) => event.userId === userId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const points = events.reduce((sum, event) => sum + event.points, 0);
+    const levels: Array<{ level: ContributionSummary['level']; threshold: number }> = [
+      { level: 'Lokal bidragsyter', threshold: 0 },
+      { level: 'Lokal skjemaguide', threshold: 10 },
+      { level: 'Lokal skjemaguru', threshold: 30 },
+    ];
+    const current = [...levels].reverse().find((item) => points >= item.threshold) ?? levels[0];
+    const next = levels.find((item) => item.threshold > points);
+    return {
+      points,
+      level: current.level,
+      ...(next ? { nextLevel: next.level, pointsToNextLevel: next.threshold - points } : {}),
+      events: events.slice(0, 20),
+    };
+  }
+
+  async saveProductFeedback(userId: string, message: string): Promise<ProductFeedback> {
+    const feedback: ProductFeedback = { id: randomUUID(), userId, message: message.trim().slice(0, 4000), createdAt: new Date().toISOString() };
+    this.data.productFeedback.push(feedback);
+    await this.persist();
+    await this.addContributionEvent(userId, { type: 'feedback_submitted', points: 2, referenceId: feedback.id, description: 'Sendte inn et forbedringsforslag til ORaKeL.' });
+    return feedback;
   }
 
   async deleteChatExchange(userId: string, exchangeId: string): Promise<boolean> {

@@ -3,7 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp, Clock3, EyeOff, FileCheck2, Filter, History, Landmark, Plus, Search, Send, ShieldCheck, Sparkles, ThumbsDown, ThumbsUp, Trash2, UserRound, X } from 'lucide-react';
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
-import type { ChatAnswer, ChatExchange, ChatFeedback, DemoUser, Obligation, Organization, OrganizationProfile, Source, TaskStatus, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareStatus, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, Source, TaskStatus, UserReportedRequirement } from './domain/types';
 import { buildEventGuides, obligationsForEvent, organizationEventContext, type EventGuide } from './data/event-navigator';
 import { isMutedForDate } from './domain/task-visibility';
 import { statusForDate } from './domain/task-status';
@@ -203,6 +203,8 @@ function App() {
   const [searchingOrganizations, setSearchingOrganizations] = useState(false);
   const [toast, setToast] = useState('');
   const [showOrganizationProfile, setShowOrganizationProfile] = useState(false);
+  const [contributionSummary, setContributionSummary] = useState<ContributionSummary | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [sloganIndex, setSloganIndex] = useState(0);
 
   useEffect(() => {
@@ -241,6 +243,7 @@ function App() {
   useEffect(() => {
     void api.me().then(async (nextUser) => {
       setUser(nextUser);
+      void api.contributionSummary().then(setContributionSummary).catch(() => setContributionSummary(null));
       const organizationsForUser = await api.myOrganizations();
       setSavedOrganizations(organizationsForUser);
       if (nextUser.role === 'caseworker') setReports(await api.reports());
@@ -268,6 +271,8 @@ function App() {
       await api.logout();
     } finally {
       setUser(null);
+      setContributionSummary(null);
+      setShowFeedback(false);
       setOrganization(null);
       setOrganizationProfile(null);
       setOrganizationMutedBefore('');
@@ -280,6 +285,7 @@ function App() {
 
   const handleAuthenticated = async (nextUser: DemoUser) => {
     setUser(nextUser);
+    void api.contributionSummary().then(setContributionSummary).catch(() => setContributionSummary(null));
     const organizationsForUser = await api.myOrganizations();
     setSavedOrganizations(organizationsForUser);
     if (nextUser.role === 'caseworker') setReports(await api.reports());
@@ -305,7 +311,7 @@ function App() {
     <header className="topbar">
       <div className="brand-lockup"><img src="/orakel-logo.svg" alt="ORaKeL" /><div><strong>ORaKeL</strong><span>KI-assistert rapporteringslos</span><small className="app-version">v{appVersion} · {appEnvironment}</small></div></div>
       {user.role === 'business' && organization && <button className="organization-topbar-trigger" onClick={() => setShowOrganizationProfile(true)}><Landmark size={16} /><span><strong>{organization.name}</strong><small>{organization.orgNumber}</small></span><ChevronRight size={16} /></button>}
-      <div className="user-pill"><div className="avatar">{user.displayName.slice(0, 2).toUpperCase()}</div><span>{user.displayName}</span><small>{user.role === 'caseworker' ? 'Saksbehandler' : 'Virksomhet'}</small><button onClick={() => void signOut()}>Logg ut</button></div>
+      {user.role === 'business' && contributionSummary && <span className="contribution-pill" title={contributionSummary.nextLevel ? `${contributionSummary.pointsToNextLevel} poeng til ${contributionSummary.nextLevel}` : 'Høyeste demo-nivå nådd'}><Sparkles size={14} /> {contributionSummary.level} · {contributionSummary.points} poeng</span>}<button className="feedback-button" onClick={() => setShowFeedback(true)}><CircleHelp size={14} /> Gi tilbakemelding</button><div className="user-pill"><div className="avatar">{user.displayName.slice(0, 2).toUpperCase()}</div><span>{user.displayName}</span><small>{user.role === 'caseworker' ? 'Saksbehandler' : 'Virksomhet'}</small><button onClick={() => void signOut()}>Logg ut</button></div>
     </header>
 
     <main className="page-container">
@@ -317,9 +323,10 @@ function App() {
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}<button onClick={() => setToast('')} aria-label="Lukk melding"><X size={16} /></button></div>}
 
       {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status) => { const updated = await api.updateReport(id, status); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
-      {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} />}
+      {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} onContributionChanged={() => api.contributionSummary().then(setContributionSummary).catch(() => undefined)} />}
       {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Søk etter virksomheten din ovenfor, velg et treff og legg den til i Mine virksomheter.</Paragraph></Card>}
       {showOrganizationProfile && organization && organizationProfile && <OrganizationProfileDialog organization={organization} profile={organizationProfile} sources={sources} onClose={() => setShowOrganizationProfile(false)} onSaved={(nextProfile) => { setOrganizationProfile(nextProfile); setToast('Virksomhetsprofilen er lagret.'); }} />}
+      {showFeedback && <FeedbackDialog onClose={() => setShowFeedback(false)} onCreated={() => { setShowFeedback(false); void api.contributionSummary().then(setContributionSummary).catch(() => undefined); setToast('Takk for tilbakemeldingen.'); }} />}
     </main>
   </div>;
 }
@@ -377,7 +384,7 @@ function OrganizationProfileDialog({ organization, profile, sources, onClose, on
   return <div className="dialog-backdrop" role="presentation"><div className="dialog organization-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="organization-profile-title"><div className="dialog-heading"><div><p className="eyebrow">Virksomhetsprofil</p><Heading level={2} id="organization-profile-title">{organization.name}</Heading><Paragraph>Offisielle registeropplysninger og dine egne opplysninger holdes adskilt.</Paragraph></div><button onClick={onClose} aria-label="Lukk"><X /></button></div><section className="profile-section"><div className="profile-section-heading"><div><strong>Offisielle opplysninger</strong><span>Hentet fra virksomhetskilden</span></div><span className="trust trust-official"><ShieldCheck size={14} /> Offisiell</span></div><dl className="profile-fields">{officialFields.map(([field, fieldValue]) => <div key={field}><dt>{field}</dt><dd>{fieldValue}</dd></div>)}</dl></section><section className="profile-section"><div className="profile-section-heading"><div><strong>Egne opplysninger</strong><span>Dette er brukerinput og kan ikke endre registerdata eller juridiske konklusjoner.</span></div><span className="trust trust-user_input">Brukerinput</span></div>{inputs.length > 0 && <div className="user-input-list">{inputs.map((input) => <div className="user-input-row" key={input.id}><div><strong>{input.label}</strong><span>{input.value}</span><small>Brukerinput · oppdatert {formatDate(input.updatedAt.slice(0, 10), true)}</small></div><button type="button" onClick={() => setInputs((current) => current.filter((item) => item.id !== input.id))} aria-label={`Fjern ${input.label}`}><X size={15} /></button></div>)}</div>}<div className="profile-input-form"><Textfield label="Felt eller tema" placeholder="For eksempel regnskapssystem" value={label} onChange={(event) => setLabel(event.target.value)} /><Textfield label="Opplysning" placeholder="For eksempel Tripletex" value={value} onChange={(event) => setValue(event.target.value)} /><Button variant="secondary" onClick={addInput} disabled={!label.trim() || !value.trim()}>Legg til</Button></div></section><section className="profile-section"><div className="profile-section-heading"><div><strong>Kilder</strong><span>Opplysningene kan endres når kildene oppdateres.</span></div></div>{organization.sources.map((sourceId) => { const source = sources.find((item) => item.id === sourceId); return source ? <a className="profile-source" href={source.url} target="_blank" rel="noreferrer" key={source.id}><ShieldCheck size={15} /><span><strong>{source.title}</strong><small>Sist hentet {formatDate(source.retrievedAt.slice(0, 10), true)}</small></span><ChevronRight size={15} /></a> : null; })}</section><div className="dialog-actions"><Button variant="secondary" onClick={onClose}>Lukk</Button><Button onClick={() => void save()} disabled={saving}>{saving ? 'Lagrer…' : 'Lagre egne opplysninger'}</Button></div></div></div>;
 }
 
-function Overview({ organization, organizationMutedBefore, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged, onOrganizationViewChanged }: { organization: Organization; organizationMutedBefore: string; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void; onOrganizationViewChanged: () => void }) {
+function Overview({ organization, organizationMutedBefore, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged, onOrganizationViewChanged, onContributionChanged }: { organization: Organization; organizationMutedBefore: string; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void; onOrganizationViewChanged: () => void; onContributionChanged: () => Promise<void> }) {
   const [showReport, setShowReport] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<'calendar' | 'events' | 'worklist' | 'report' | 'los'>('calendar');
   const [chatPrompt, setChatPrompt] = useState('');
@@ -421,7 +428,7 @@ function Overview({ organization, organizationMutedBefore, obligations, catalogO
     <nav className="workspace-switcher" aria-label="Velg arbeidsflate"><span>Arbeidsflate</span><button className={workspaceView === 'calendar' ? 'selected' : ''} onClick={() => setWorkspaceView('calendar')}>Årshjul</button><button className={workspaceView === 'events' ? 'selected' : ''} onClick={() => setWorkspaceView('events')}>Hendelser</button><button className={workspaceView === 'worklist' ? 'selected' : ''} onClick={() => setWorkspaceView('worklist')}>Arbeidsliste</button><button className={workspaceView === 'report' ? 'selected' : ''} onClick={() => setWorkspaceView('report')}>Meld inn</button><button className={workspaceView === 'los' ? 'selected' : ''} onClick={() => setWorkspaceView('los')}>Losen</button></nav>
     <section className="dashboard-grid">
       <div className="main-column" ref={mainColumnRef}>
-        {workspaceView === 'events' ? <EventNavigator organization={organization} obligations={allObligations} guides={eventGuides} sources={sources} onSelectObligation={(id) => { setSelectedObligationId(id); setSelectedOccurrenceDate(null); }} onAskLos={(prompt) => { setChatPrompt(prompt); setWorkspaceView('los'); }} /> : workspaceView === 'los' ? <div className="los-workspace"><ChatPanel orgNumber={organization.orgNumber} sources={sources} prefillQuestion={chatPrompt} /><SourcePanel sources={sources} /></div> : workspaceView === 'report' ? <ReportWorkspace onOpen={() => setShowReport(true)} /> : <>
+        {workspaceView === 'events' ? <EventNavigator organization={organization} obligations={allObligations} guides={eventGuides} sources={sources} onSelectObligation={(id) => { setSelectedObligationId(id); setSelectedOccurrenceDate(null); }} onAskLos={(prompt) => { setChatPrompt(prompt); setWorkspaceView('los'); }} /> : workspaceView === 'los' ? <div className="los-workspace"><ChatPanel orgNumber={organization.orgNumber} sources={sources} prefillQuestion={chatPrompt} onContributionChanged={onContributionChanged} /><SourcePanel sources={sources} /></div> : workspaceView === 'report' ? <ReportWorkspace onOpen={() => setShowReport(true)} /> : <>
         {workspaceView !== 'worklist' && <><Card className="surface-card calendar-card"><div className="card-heading-row"><div><p className="eyebrow">Rullerende 12 måneder</p><Heading level={2}>Årshjul</Heading><span className="calendar-caption">Katalog over relevante oppgaver. Velg en oppgave for å legge den i arbeidslisten.</span></div><div className="calendar-controls"><button className="calendar-nav" onClick={() => setCalendarStart(shiftMonth(calendarStart, -1))} aria-label="Vis forrige måned"><ChevronLeft size={17} /></button><span>{formatDate(dateKey(calendarStart), true)} – {formatDate(dateKey(shiftMonth(calendarStart, 11)), true)}</span><button className="calendar-nav" onClick={() => setCalendarStart(shiftMonth(calendarStart, 1))} aria-label="Vis neste måned"><ChevronRight size={17} /></button><button className="calendar-today" onClick={() => setCalendarStart(shiftMonth(monthStart(new Date()), -3))}>I dag</button><div className="segmented"><button className={calendarMode === 'year' ? 'selected' : ''} onClick={() => setCalendarMode('year')}>Årshjul</button><button className={calendarMode === 'list' ? 'selected' : ''} onClick={() => setCalendarMode('list')}>Liste</button></div></div></div>{calendarMode === 'year' ? <YearWheel obligations={catalogObligations} start={calendarStart} includeHidden={visibilityFilter !== 'visible'} selectedId={selectedObligation?.id} selectedOccurrenceDate={selectedOccurrenceDate ?? undefined} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} /> : <ObligationList obligations={catalogObligations} selectedId={selectedObligation?.id} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} />}</Card><div className="workspace-mute-controls">{selectedObligation && <MuteControl orgNumber={organization.orgNumber} obligation={selectedObligation} onTaskChanged={onTaskChanged} />}<OrganizationMuteControl orgNumber={organization.orgNumber} mutedBefore={organizationMutedBefore} onChanged={onOrganizationViewChanged} /></div></>}
         {workspaceView === 'worklist' && <>
         <div className="workspace-heading"><div><p className="eyebrow">Arbeidsliste</p><Heading level={2}>{taskTypeFilter === 'event' ? 'Hendelser som krever oppfølging' : 'Det som må gjøres'}</Heading><span className="calendar-caption">Bare oppgaver du har aktivert med frist eller gjentakelse vises her.</span></div><div className="filter-row"><Filter size={16} /><select value={statusFilter} onChange={(event) => preserveMainScroll(() => setStatusFilter(event.target.value as typeof statusFilter))} aria-label="Filtrer oppgaver"><option value="all">Alle statuser</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select value={visibilityFilter} onChange={(event) => preserveMainScroll(() => setVisibilityFilter(event.target.value as typeof visibilityFilter))} aria-label="Filtrer synlighet"><option value="visible">Synlige</option><option value="muted">Dempede</option><option value="hidden">Skjulte</option><option value="all">Alle oppgaver</option></select>{visibilityFilter === 'muted' && mutedCount > 0 && <Button variant="secondary" onClick={() => void activateAllMuted()} disabled={activatingAllMuted}>{activatingAllMuted ? 'Aktiverer…' : `Aktiver alle dempede (${mutedCount})`}</Button>}<select value={taskTypeFilter} onChange={(event) => { setTaskTypeFilter(event.target.value as typeof taskTypeFilter); setEventFilter('all'); }} aria-label="Filtrer oppgavetype"><option value="all">Alle oppgavetyper</option><option value="periodic">Med fast frist</option><option value="event">Ved hendelse</option></select>{taskTypeFilter === 'event' && <select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} aria-label="Filtrer hendelse"><option value="all">Alle hendelser</option>{eventOptions.map((event) => <option key={event} value={event}>{event}</option>)}</select>}<select value={taskSort} onChange={(event) => setTaskSort(event.target.value as typeof taskSort)} aria-label="Sorter arbeidsliste"><option value="deadline">Nærmeste frist først</option><option value="status">Sorter på status</option><option value="agency">Sorter på etat</option></select><Textfield className="task-search" aria-label="Søk i arbeidslisten" placeholder="Søk i aktive oppgaver" value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} /></div></div>
@@ -433,7 +440,7 @@ function Overview({ organization, organizationMutedBefore, obligations, catalogO
       </div>
       <aside className="side-column"><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} occurrenceDate={selectedOccurrenceDate} sources={sources} onTaskChanged={onTaskChanged} /></aside>
     </section>
-    {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => setShowReport(false)} />}
+    {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => { setShowReport(false); void onContributionChanged(); }} />}
   </>;
 }
 
@@ -635,7 +642,7 @@ function SourcePanel({ sources }: { sources: Source[] }) {
   return <Card className="surface-card source-card"><div className="section-title"><div><p className="eyebrow">Kunnskapsgrunnlag</p><Heading level={3}>Kilder</Heading></div><Search size={18} /></div><Textfield aria-label="Søk i kilder" placeholder="Søk i godkjente kilder" value={query} onChange={(event) => setQuery(event.target.value)} />{filtered.map((source) => <div className="source-preview" key={source.id}><div className="source-label-row"><TrustLabel level={source.officiality} /><span className={`source-authority authority-${source.authority?.toLowerCase() ?? 'unverified'}`}>{sourceAuthorityLabel(source.authority)}</span></div><strong>{source.title}</strong><p>{source.relevantExcerpt}</p></div>)}</Card>;
 }
 
-function ChatPanel({ orgNumber, sources, prefillQuestion }: { orgNumber: string; sources: Source[]; prefillQuestion?: string }) {
+function ChatPanel({ orgNumber, sources, prefillQuestion, onContributionChanged }: { orgNumber: string; sources: Source[]; prefillQuestion?: string; onContributionChanged: () => Promise<void> }) {
   const [question, setQuestion] = useState('Hvilke oppgaver gjelder for oss nå?');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
@@ -643,6 +650,8 @@ function ChatPanel({ orgNumber, sources, prefillQuestion }: { orgNumber: string;
   const [historyQuery, setHistoryQuery] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [feedback, setFeedback] = useState<ChatFeedback | undefined>();
+  const [shareStatus, setShareStatus] = useState<ChatShareStatus | undefined>();
+  const [shareLoading, setShareLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [chatError, setChatError] = useState('');
   const [isSlow, setIsSlow] = useState(false);
@@ -657,6 +666,7 @@ function ChatPanel({ orgNumber, sources, prefillQuestion }: { orgNumber: string;
     setAnswer(null);
     setSubmittedQuestion('');
     setFeedback(undefined);
+    setShareStatus(undefined);
     void api.chatHistory(orgNumber).then(setHistory).catch(() => setHistory([]));
   }, [orgNumber]);
   useEffect(() => {
@@ -678,6 +688,7 @@ function ChatPanel({ orgNumber, sources, prefillQuestion }: { orgNumber: string;
       const nextAnswer = await api.chat(nextQuestion, orgNumber, controller.signal);
       if (requestSequenceRef.current === requestId) {
         setAnswer(nextAnswer);
+        setShareStatus(nextAnswer.shareStatus);
         if (nextAnswer.exchangeId) void api.chatHistory(orgNumber).then(setHistory).catch(() => undefined);
       }
     } catch (error) {
@@ -711,13 +722,28 @@ function ChatPanel({ orgNumber, sources, prefillQuestion }: { orgNumber: string;
     setSubmittedQuestion(exchange.question);
     setAnswer({ answer: exchange.answer, uncertainty: exchange.uncertainty, sourceIds: exchange.sourceIds, followUpQuestions: exchange.followUpQuestions, exchangeId: exchange.id });
     setFeedback(exchange.feedback);
+    setShareStatus(exchange.share?.status);
     setChatError('');
   };
   const setExchangeFeedback = async (nextFeedback: ChatFeedback) => {
     if (!answer?.exchangeId) return;
     const updated = await api.updateChatFeedback(answer.exchangeId, feedback === nextFeedback ? undefined : nextFeedback);
     setFeedback(updated.feedback);
+    setShareStatus(updated.share?.status);
     setHistory((items) => items.map((item) => item.id === updated.id ? updated : item));
+    await onContributionChanged();
+  };
+  const setExchangeShare = async (status: ChatShareStatus) => {
+    if (!answer?.exchangeId) return;
+    setShareLoading(true);
+    try {
+      const updated = await api.updateChatShare(answer.exchangeId, { status });
+      setShareStatus(updated.share?.status);
+      setHistory((items) => items.map((item) => item.id === updated.id ? updated : item));
+      await onContributionChanged();
+    } finally {
+      setShareLoading(false);
+    }
   };
   const deleteExchange = async (exchange: ChatExchange) => {
     await api.deleteChatExchange(exchange.id);
@@ -726,9 +752,48 @@ function ChatPanel({ orgNumber, sources, prefillQuestion }: { orgNumber: string;
       setAnswer(null);
       setSubmittedQuestion('');
       setFeedback(undefined);
+      setShareStatus(undefined);
     }
   };
-  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <><FormattedAnswer text={answer.answer} /><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div><div className="chat-feedback"><span>Var dette nyttig?</span><button className={feedback === 'useful' ? 'selected' : ''} onClick={() => void setExchangeFeedback('useful')} disabled={!answer.exchangeId}><ThumbsUp size={14} /> Ja</button><button className={feedback === 'not_useful' ? 'selected' : ''} onClick={() => void setExchangeFeedback('not_useful')} disabled={!answer.exchangeId}><ThumbsDown size={14} /> Nei</button></div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}{isLoading && <div className="chat-loading"><Sparkles size={15} /> Losen arbeider i bakgrunnen…{isSlow && <span>Dette kan ta opptil et halvt minutt når mange oppgaver skal vurderes.</span>}</div>}{submittedQuestion && <p className="submitted-question"><span>Sist sendt:</span> {submittedQuestion}</p>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label={isLoading ? 'Avbryt spørsmål' : 'Send spørsmål'} onClick={() => void (isLoading ? cancel() : ask())}>{isLoading ? 'Avbryt' : <Send size={16} />}</Button></div><div className="chat-history"><button className="chat-history-toggle" onClick={() => setShowHistory((visible) => !visible)}><History size={15} /> Tidligere spørsmål ({history.length})<ChevronRight size={15} className={showHistory ? 'rotated' : ''} /></button>{showHistory && <div className="chat-history-content"><Textfield aria-label="Søk i tidligere spørsmål" placeholder="Søk i historikken" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} />{visibleHistory.length > 0 ? <div className="chat-history-list">{visibleHistory.map((exchange) => <div className={`chat-history-item ${answer?.exchangeId === exchange.id ? 'selected' : ''}`} key={exchange.id}><button onClick={() => openExchange(exchange)}><strong>{exchange.question}</strong><small>{formatDateTime(exchange.createdAt)}{exchange.feedback === 'useful' ? ' · Nyttig' : exchange.feedback === 'not_useful' ? ' · Ikke nyttig' : ''}</small></button><button className="chat-history-delete" onClick={() => void deleteExchange(exchange)} aria-label="Slett tidligere svar"><Trash2 size={14} /></button></div>)}</div> : <p className="muted">Ingen tidligere spørsmål matcher søket.</p>}</div>}</div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
+  return <Card className="surface-card chat-card">
+    <div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div>
+    <div className="chat-answer">
+      {chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <>
+        <FormattedAnswer text={answer.answer} />
+        <div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>
+        {answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}
+        <div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div>
+        <div className="chat-feedback"><span>Var dette nyttig?</span><button className={feedback === 'useful' ? 'selected' : ''} onClick={() => void setExchangeFeedback('useful')} disabled={!answer.exchangeId}><ThumbsUp size={14} /> Ja</button><button className={feedback === 'not_useful' ? 'selected' : ''} onClick={() => void setExchangeFeedback('not_useful')} disabled={!answer.exchangeId}><ThumbsDown size={14} /> Nei</button></div>
+        {feedback === 'useful' && answer.exchangeId && <ChatSharePrompt status={shareStatus} loading={shareLoading} onShare={(status) => void setExchangeShare(status)} />}
+      </> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}
+      {isLoading && <div className="chat-loading"><Sparkles size={15} /> Losen arbeider i bakgrunnen…{isSlow && <span>Dette kan ta opptil et halvt minutt når mange oppgaver skal vurderes.</span>}</div>}
+      {submittedQuestion && <p className="submitted-question"><span>Sist sendt:</span> {submittedQuestion}</p>}
+    </div>
+    <div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label={isLoading ? 'Avbryt spørsmål' : 'Send spørsmål'} onClick={() => void (isLoading ? cancel() : ask())}>{isLoading ? 'Avbryt' : <Send size={16} />}</Button></div>
+    <div className="chat-history"><button className="chat-history-toggle" onClick={() => setShowHistory((visible) => !visible)}><History size={15} /> Tidligere spørsmål ({history.length})<ChevronRight size={15} className={showHistory ? 'rotated' : ''} /></button>{showHistory && <div className="chat-history-content"><Textfield aria-label="Søk i tidligere spørsmål" placeholder="Søk i historikken" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} />{visibleHistory.length > 0 ? <div className="chat-history-list">{visibleHistory.map((exchange) => <div className={`chat-history-item ${answer?.exchangeId === exchange.id ? 'selected' : ''}`} key={exchange.id}><button onClick={() => openExchange(exchange)}><strong>{exchange.question}</strong><small>{formatDateTime(exchange.createdAt)}{exchange.feedback === 'useful' ? ' · Nyttig' : exchange.feedback === 'not_useful' ? ' · Ikke nyttig' : ''}</small></button><button className="chat-history-delete" onClick={() => void deleteExchange(exchange)} aria-label="Slett tidligere svar"><Trash2 size={14} /></button></div>)}</div> : <p className="muted">Ingen tidligere spørsmål matcher søket.</p>}</div>}</div>
+    <div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div>
+  </Card>;
+}
+
+function ChatSharePrompt({ status, loading, onShare }: { status?: ChatShareStatus; loading: boolean; onShare: (status: ChatShareStatus) => void }) {
+  if (status === 'consented') return <div className="chat-sharing chat-sharing-confirmed"><strong>Anonymisert forslag sendt til FAQ-vurdering</strong><span>Organisasjonsnavn, organisasjonsnummer og kontaktopplysninger er fjernet. En saksbehandler må godkjenne innholdet før eventuell publisering.</span><button onClick={() => onShare('withdrawn')} disabled={loading}>Trekk samtykke</button></div>;
+  if (status === 'withdrawn') return <div className="chat-sharing"><span>Du har valgt å ikke dele dette svaret. Det forblir privat i loshistorikken.</span></div>;
+  return <div className="chat-sharing"><strong>Kan svaret hjelpe andre?</strong><span>Med ditt aktive samtykke kan et anonymisert spørsmål og svar foreslås til fellesskapets FAQ.</span><div><Button onClick={() => onShare('consented')} disabled={loading}>{loading ? 'Lagrer…' : 'Del anonymisert svar'}</Button><button onClick={() => onShare('withdrawn')} disabled={loading}>Ikke nå</button></div></div>;
+}
+
+function FeedbackDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await api.createFeedback(message);
+      onCreated();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <div className="dialog-backdrop" role="presentation"><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="feedback-title"><div className="dialog-heading"><div><p className="eyebrow">Brukerbidrag</p><Heading level={2} id="feedback-title">Gi tilbakemelding</Heading><Paragraph>Fortell hva som kan gjøre ORaKeL mer nyttig. Forslaget lagres som brukerinput og kan ikke endre offisielle opplysninger.</Paragraph></div><button onClick={onClose} aria-label="Lukk"><X /></button></div><label className="feedback-field">Hva bør vi forbedre?<Textarea rows={5} value={message} onChange={(event) => setMessage(event.target.value)} /></label><div className="dialog-actions"><Button variant="secondary" onClick={onClose}>Avbryt</Button><Button onClick={() => void submit()} disabled={saving || message.trim().length < 3}>{saving ? 'Sender…' : 'Send tilbakemelding'}</Button></div></div></div>;
 }
 
 function ReportDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
