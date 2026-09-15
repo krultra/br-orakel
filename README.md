@@ -49,14 +49,14 @@ ikke legges i Git.
 
 ### Versjonering
 
-ORaKeL viser versjon i toppnavigasjonen som `0.y.z`:
+ORaKeL viser versjon i toppnavigasjonen som `x.y.z`:
 
-- `0` er hovednivået under hackathonet.
-- `y` er demo-release og økes bare når en versjon eksplisitt publiseres til `demo.krultra.no`.
-- `z` er et lokalt sekvensielt byggnummer som starter på 1 og økes for hvert nytt bygg.
+- `x` er hovedversjonen.
+- `y` er demo-release/minorversjon.
+- `z` er byggnummer/patchversjon.
 
-Vanlige bygg bruker `0.0.z`. For en demo-release kan deployen få for eksempel
-`ORAKEL_DEMO_RELEASE=1`. `scripts/deploy-pi-tok.sh` deployer bare til
+Vanlige utviklingsbygg bruker fortsatt `0.0.z`. En eksplisitt release kan bygges
+med `ORAKEL_VERSION=1.0.0`. `scripts/deploy-pi-tok.sh` deployer bare til
 `test.krultra.no` som standard. Demo krever eksplisitt
 `BR_ORAKEL_DEPLOY_TARGET=demo`.
 
