@@ -41,11 +41,15 @@ npm run dev
 eller organisasjonsnummer i BRREG. Mockvirksomheten er `999999999`. API-et
 kjører på <http://localhost:3001>.
 
-Ved oppstart kan en demo-bruker registreres selv. Saksbehandlerrollen er
-forhåndsopprettet med brukernavn `br-saksbehandler` og passord `demo` i den
-lokale demo-instansen. Virksomhetsbrukere kan søke opp virksomheter og lagre
-dem i «Mine virksomheter». Brukerdata lagres lokalt i `data/runtime/` og skal
-ikke legges i Git.
+Ved oppstart kan en demo-bruker registreres selv. To saksbehandlerbrukere er
+forhåndsopprettet i den lokale demo-instansen:
+
+- `br-saksbehandler` / `demo`
+- `br-kvalitet` / `demo`
+
+Virksomhetsbrukere kan søke opp virksomheter og lagre dem i «Mine
+virksomheter». Brukerdata lagres lokalt i `data/runtime/` og skal ikke legges i
+Git.
 
 ### Versjonering
 

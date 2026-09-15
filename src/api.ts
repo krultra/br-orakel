@@ -32,7 +32,7 @@ export const api = {
   sources: (query = '', orgNumber?: string) => request<Source[]>(`/api/sources?q=${encodeURIComponent(query)}${orgNumber ? `&orgNumber=${encodeURIComponent(orgNumber)}` : ''}`),
   reports: () => request<UserReportedRequirement[]>('/api/reported-requirements'),
   createReport: (input: Partial<UserReportedRequirement>) => request<UserReportedRequirement>('/api/reported-requirements', { method: 'POST', body: JSON.stringify(input) }),
-  updateReport: (id: string, reviewStatus: UserReportedRequirement['reviewStatus']) => request<UserReportedRequirement>(`/api/reported-requirements/${id}`, { method: 'PATCH', body: JSON.stringify({ reviewStatus }) }),
+  updateReport: (id: string, reviewStatus: UserReportedRequirement['reviewStatus'], note: string) => request<UserReportedRequirement>(`/api/reported-requirements/${id}`, { method: 'PATCH', body: JSON.stringify({ reviewStatus, note }) }),
   taskPreferences: (orgNumber: string) => request<TaskPreference[]>(`/api/organizations/${orgNumber}/task-preferences`),
   activateAllMuted: (orgNumber: string) => request<{ changed: number }>(`/api/organizations/${orgNumber}/task-preferences/activate-muted`, { method: 'POST' }),
   saveTaskPreference: (orgNumber: string, obligationId: string, preference: TaskPreferenceUpdate) => request<TaskPreference>(`/api/organizations/${orgNumber}/task-preferences/${encodeURIComponent(obligationId)}`, { method: 'PUT', body: JSON.stringify(preference) }),

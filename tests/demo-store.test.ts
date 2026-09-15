@@ -38,6 +38,20 @@ test('DemoStore oppretter bruker, virksomhetsfavoritt og personlig oppgaveprefer
   }
 });
 
+test('DemoStore seed-er to saksbehandlerbrukere', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'br-orakel-caseworkers-'));
+  try {
+    const storePath = path.join(directory, 'demo-store.json');
+    const store = new DemoStore(storePath);
+    await store.init();
+
+    assert.equal(store.authenticate('br-saksbehandler', 'demo')?.role, 'caseworker');
+    assert.equal(store.authenticate('br-kvalitet', 'demo')?.role, 'caseworker');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('DemoStore kan aktivere alle dempede oppgaver for én virksomhet', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'br-orakel-bulk-'));
   try {

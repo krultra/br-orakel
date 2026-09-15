@@ -69,11 +69,26 @@ export class MockRequirementAdapter implements RequirementAdapter {
     return structuredClone(report);
   }
 
-  async updateStatus(id: string, reviewStatus: UserReportedRequirement['reviewStatus']): Promise<UserReportedRequirement | null> {
+  async updateStatus(id: string, reviewStatus: UserReportedRequirement['reviewStatus'], review?: { reviewedBy: string; reviewedByName: string; note: string }): Promise<UserReportedRequirement | null> {
     const report = this.reports.find((item) => item.id === id);
     if (!report) return null;
     report.reviewStatus = reviewStatus;
     report.updatedAt = new Date().toISOString();
+    if (review) {
+      const reviewedAt = report.updatedAt;
+      report.reviewedBy = review.reviewedBy;
+      report.reviewedByName = review.reviewedByName;
+      report.reviewedAt = reviewedAt;
+      report.reviewNote = review.note;
+      report.reviewHistory = [...(report.reviewHistory ?? []), {
+        id: `review-${report.id}-${(report.reviewHistory?.length ?? 0) + 1}`,
+        status: reviewStatus,
+        reviewedBy: review.reviewedBy,
+        reviewedByName: review.reviewedByName,
+        note: review.note,
+        createdAt: reviewedAt,
+      }];
+    }
     return structuredClone(report);
   }
 }

@@ -37,7 +37,7 @@ export interface SupervisionAdapter {
 export interface RequirementAdapter {
   list(): Promise<UserReportedRequirement[]>;
   create(input: Omit<UserReportedRequirement, 'id' | 'createdAt' | 'updatedAt'>): Promise<UserReportedRequirement>;
-  updateStatus(id: string, reviewStatus: UserReportedRequirement['reviewStatus']): Promise<UserReportedRequirement | null>;
+  updateStatus(id: string, reviewStatus: UserReportedRequirement['reviewStatus'], review?: { reviewedBy: string; reviewedByName: string; note: string }): Promise<UserReportedRequirement | null>;
 }
 
 /**

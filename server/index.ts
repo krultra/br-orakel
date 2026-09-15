@@ -494,15 +494,21 @@ app.get('/api/sources/policy', async () => ({
   rule: 'Bare AUTHORITATIVE og OFFICIAL_GUIDANCE kan brukes som autoritativt kildegrunnlag. DISCOVERY og UNVERIFIED må merkes tydelig.',
 }));
 
-app.get('/api/reported-requirements', async () => requirements.list());
+app.get('/api/reported-requirements', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn for å se saksbehandlerkøen.' });
+  if (user.role !== 'caseworker') return reply.code(403).send({ message: 'Bare saksbehandlere har tilgang til saksbehandlerkøen.' });
+  return requirements.list();
+});
 
 app.post('/api/reported-requirements', async (request, reply) => {
   const body = request.body as any;
   if (!body?.title || !body?.description) return reply.code(400).send({ message: 'Tittel og beskrivelse er obligatorisk.' });
+  const user = sessionUser(request);
   const created = await requirements.create({
     title: body.title,
     description: body.description,
-    reportedBy: body.reportedBy || 'Demo-bruker',
+    reportedBy: user?.role === 'business' ? user.displayName : body.reportedBy || 'Demo-bruker',
     suspectedAgency: body.suspectedAgency,
     suspectedLegalBasis: body.suspectedLegalBasis,
     targetGroup: body.targetGroup,
@@ -513,17 +519,20 @@ app.post('/api/reported-requirements', async (request, reply) => {
     confidence: 0.42,
     reviewStatus: 'new',
   });
-  const user = sessionUser(request);
   if (user) await demoStore.addContributionEvent(user.id, { type: 'requirement_reported', points: 3, referenceId: created.id, description: 'Sendte inn et mulig manglende rapporteringskrav.' });
   return reply.code(201).send(created);
 });
 
 app.patch('/api/reported-requirements/:id', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn for å behandle innspill.' });
+  if (user.role !== 'caseworker') return reply.code(403).send({ message: 'Bare saksbehandlere kan behandle innspill.' });
   const { id } = request.params as { id: string };
-  const { reviewStatus } = request.body as { reviewStatus: string };
+  const { reviewStatus, note } = request.body as { reviewStatus?: unknown; note?: unknown };
   const allowed = ['new', 'needs_more_info', 'forwarded', 'confirmed', 'rejected', 'duplicate'];
-  if (!allowed.includes(reviewStatus)) return reply.code(400).send({ message: 'Ugyldig status.' });
-  const updated = await requirements.updateStatus(id, reviewStatus as any);
+  if (typeof reviewStatus !== 'string' || !allowed.includes(reviewStatus)) return reply.code(400).send({ message: 'Ugyldig status.' });
+  if (typeof note !== 'string' || note.trim().length < 3) return reply.code(400).send({ message: 'Skriv en kort begrunnelse for statusendringen.' });
+  const updated = await requirements.updateStatus(id, reviewStatus as any, { reviewedBy: user.id, reviewedByName: user.displayName, note: note.trim().slice(0, 2000) });
   return updated ? updated : reply.code(404).send({ message: 'Innspillet finnes ikke.' });
 });
 
