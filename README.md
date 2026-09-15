@@ -69,6 +69,11 @@ for hele oppgaven.
 
 ## Samarbeid med flere agenter
 
+Videre produktarbeid er samlet i [docs/BACKLOG.md](docs/BACKLOG.md), med
+parallelle spor, avhengigheter og akseptansekriterier. Første versjon av
+allowlisten for losens autoritative kilder ligger i
+[docs/AUTHORIZED_SOURCES.md](docs/AUTHORIZED_SOURCES.md).
+
 Les [AGENTS.md](AGENTS.md) før du arbeider i repoet. Den beskriver fil-eierskap, Codex-/Claude Code-handoff, testkrav og regler for parallelt arbeid. [CONTRIBUTING.md](CONTRIBUTING.md) beskriver utviklerflyten, mens [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) beskriver Git worktrees, branches, PR-er og overtakelse mellom agenter.
 
 Opprett en isolert arbeidskopi slik:
