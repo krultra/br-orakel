@@ -1,4 +1,4 @@
-import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareProposal, Concept, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareProposal, Concept, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, SupervisionTheme, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init });
@@ -18,6 +18,7 @@ export const api = {
   organization: (orgNumber: string) => request<Organization>(`/api/organizations/${orgNumber}`),
   searchOrganizations: (query: string) => request<Organization[]>(`/api/organizations/search?q=${encodeURIComponent(query)}`),
   obligations: (orgNumber: string) => request<Obligation[]>(`/api/organizations/${orgNumber}/obligations`),
+  supervisionThemes: (orgNumber: string) => request<SupervisionTheme[]>(`/api/organizations/${orgNumber}/supervision-themes`),
   organizationViewPreference: (orgNumber: string) => request<OrganizationViewPreference>(`/api/organizations/${orgNumber}/view-preference`),
   saveOrganizationViewPreference: (orgNumber: string, mutedBefore?: string) => request<OrganizationViewPreference>(`/api/organizations/${orgNumber}/view-preference`, { method: 'PUT', body: JSON.stringify({ mutedBefore: mutedBefore || null }) }),
   organizationProfile: (orgNumber: string) => request<OrganizationProfile>(`/api/organizations/${orgNumber}/profile`),

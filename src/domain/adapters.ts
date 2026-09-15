@@ -5,6 +5,7 @@ import type {
   Organization,
   OrganizationUserInput,
   Source,
+  SupervisionTheme,
   TrustLevel,
   UserReportedRequirement,
 } from './types.js';
@@ -27,6 +28,10 @@ export interface ConceptAdapter {
   search(query: string, limit?: number): Promise<Concept[]>;
   getById(id: string): Promise<Concept | null>;
   getByUri(uri: string): Promise<Concept | null>;
+}
+
+export interface SupervisionAdapter {
+  listForOrganization(org: Organization): Promise<SupervisionTheme[]>;
 }
 
 export interface RequirementAdapter {

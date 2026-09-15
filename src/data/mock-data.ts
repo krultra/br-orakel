@@ -87,6 +87,30 @@ export const mockSources: Source[] = [
     officiality: 'OFFICIAL_GUIDANCE',
     relevantExcerpt: 'Arbeidsgiver skal beregne og utbetale feriepenger etter reglene i ferieloven.',
   }),
+  source({
+    id: 'source-arbeidstilsynet-hms',
+    title: 'Arbeidstilsynet: Systematisk HMS-arbeid',
+    url: 'https://www.arbeidstilsynet.no/hms/systematisk-hms-arbeid/',
+    sourceType: 'guidance',
+    officiality: 'OFFICIAL_GUIDANCE',
+    relevantExcerpt: 'Virksomheten skal kartlegge farer, vurdere risiko og følge opp tiltak som del av det systematiske HMS-arbeidet.',
+  }),
+  source({
+    id: 'source-mattilsynet-smilefjes',
+    title: 'Mattilsynet: Smilefjestilsyn på serveringssteder',
+    url: 'https://data.norge.no/nb/datasets/288aa74c-e3d3-492e-9ede-e71503b3bfd9/smilefjestilsyn-pa-serveringssteder',
+    sourceType: 'dataset',
+    officiality: 'OFFICIAL_GUIDANCE',
+    relevantExcerpt: 'Åpne historiske tilsynsdata med tilsynsdato, tema, kravpunkter og samlet karakter for serveringssteder.',
+  }),
+  source({
+    id: 'source-dsb-fast',
+    title: 'DSB: FAST – anlegg og kart',
+    url: 'https://www.dsb.no/farlige-stoffer/farlige-stoffer/informasjon-og-verktoy/fast---anlegg-og-kart/',
+    sourceType: 'guidance',
+    officiality: 'OFFICIAL_GUIDANCE',
+    relevantExcerpt: 'DSBs informasjon om anlegg, kart og oppfølging av farlige stoffer. Tilgang til konkrete virksomhetsdata må avklares.',
+  }),
 ];
 
 export const mockObligations: Obligation[] = [

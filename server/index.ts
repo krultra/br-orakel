@@ -10,6 +10,7 @@ import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/dat
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 import { FallbackConceptAdapter, FdkConceptAdapter, FdkConceptError } from '../src/data/fdk-concept-adapter.js';
+import { MockSupervisionAdapter } from '../src/data/supervision-adapter.js';
 import { authorizedSourceDomains, withSourceAuthority } from '../src/data/authorized-sources.js';
 import { AuthorizedSourceRetriever } from '../src/data/authorized-source-retriever.js';
 import type { ChatShareProposal, DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
@@ -38,6 +39,7 @@ const obligations = obligationProvider === 'live'
       timeoutMs: Number(process.env.OPPGAVEREGISTERET_TIMEOUT_MS ?? 10000),
     })
   : new MockObligationAdapter();
+const supervision = new MockSupervisionAdapter();
 const sources = new MockSourceAdapter();
 const conceptMode = process.env.FDK_CONCEPT_MODE ?? 'live';
 const concepts = conceptMode === 'mock'
@@ -196,7 +198,7 @@ const sourcesForOrganization = async (query: string, orgNumber?: string) => {
 
 await app.register(cors, { origin: true });
 
-app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider, obligationProvider, conceptProvider: conceptMode === 'mock' ? 'mock' : 'fdk+mock-fallback' }));
+app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider, obligationProvider, conceptProvider: conceptMode === 'mock' ? 'mock' : 'fdk+mock-fallback', supervisionProvider: 'mock' }));
 
 app.get('/api/auth/me', async (request, reply) => {
   const user = sessionUser(request);
@@ -310,6 +312,19 @@ app.get('/api/organizations/:orgNumber/obligations', async (request, reply) => {
     if (error instanceof OppgaveregisteretError) {
       return reply.code(502).send({ code: 'OPPGAVEREGISTERET_UNAVAILABLE', message: 'Oppgaveregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
     }
+    throw error;
+  }
+});
+
+app.get('/api/organizations/:orgNumber/supervision-themes', async (request, reply) => {
+  const { orgNumber } = request.params as { orgNumber: string };
+  try {
+    const organization = await organizations.findByOrgNumber(orgNumber);
+    if (!organization) return reply.code(404).send({ message: 'Virksomheten finnes ikke i Enhetsregisteret.' });
+    return supervision.listForOrganization(organization);
+  } catch (error) {
+    if (error instanceof DatasetOrganizationError) return reply.code(502).send({ code: 'DATASET_UNAVAILABLE', message: 'Det lokale hackathon-datasettet er ikke tilgjengelig akkurat nå.' });
+    if (error instanceof EnhetsregisteretError) return reply.code(502).send({ code: 'ENHETSREGISTERET_UNAVAILABLE', message: 'Enhetsregisteret er ikke tilgjengelig akkurat nå. Prøv igjen senere.' });
     throw error;
   }
 });

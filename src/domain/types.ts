@@ -129,6 +129,33 @@ export interface Concept {
   retrievedAt: string;
 }
 
+export interface SupervisionTheme {
+  id: string;
+  title: string;
+  responsibleAgency: string;
+  description: string;
+  topics: string[];
+  targetCriteria: string[];
+  relevanceReasons: string[];
+  missingInformation: string[];
+  relatedObligationIds: string[];
+  sourceLinks: string[];
+  officialStatus: Extract<TrustLevel, 'OFFICIAL_GUIDANCE' | 'UNDER_REVIEW'>;
+}
+
+/** A concrete notice is deliberately separate from a general supervision theme. */
+export interface SupervisionNotice {
+  id: string;
+  title: string;
+  responsibleAgency: string;
+  theme?: string;
+  date?: string;
+  deadline?: string;
+  description: string;
+  sourceLinks: string[];
+  trustLevel: Extract<TrustLevel, 'OFFICIAL' | 'USER_REPORTED' | 'UNDER_REVIEW'>;
+}
+
 export interface Organization {
   orgNumber: string;
   name: string;
