@@ -201,6 +201,33 @@ export interface ChatAnswer {
   uncertainty: string;
   sourceIds: string[];
   followUpQuestions: string[];
+  /** Set by the application after a successful answer is stored. */
+  exchangeId?: string;
+}
+
+export type ChatFeedback = 'useful' | 'not_useful';
+
+export interface ChatExchangeSource {
+  id: string;
+  title: string;
+  url: string;
+  officiality: TrustLevel;
+  retrievedAt: string;
+  relevantExcerpt: string;
+}
+
+export interface ChatExchange {
+  id: string;
+  userId: string;
+  orgNumber: string;
+  question: string;
+  answer: string;
+  uncertainty: string;
+  sourceIds: string[];
+  sources: ChatExchangeSource[];
+  followUpQuestions: string[];
+  feedback?: ChatFeedback;
+  createdAt: string;
 }
 
 export interface DatasetImportOptions {

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, TaskPreference, UserRole } from '../src/domain/types.js';
+import type { ChatExchange, ChatFeedback, DemoUser, OrganizationProfile, OrganizationUserInput, OrganizationViewPreference, TaskPreference, UserRole } from '../src/domain/types.js';
 
 interface StoredUser extends DemoUser {
   passwordHash: string;
@@ -12,9 +12,10 @@ interface StoreFile {
   taskPreferences: TaskPreference[];
   organizationViewPreferences: OrganizationViewPreference[];
   organizationProfiles: OrganizationProfile[];
+  chatExchanges: ChatExchange[];
 }
 
-const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [] });
+const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [] });
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
@@ -40,6 +41,7 @@ export class DemoStore {
       this.data = JSON.parse(await readFile(this.filePath, 'utf8')) as StoreFile;
       this.data.organizationViewPreferences ??= [];
       this.data.organizationProfiles ??= [];
+      this.data.chatExchanges ??= [];
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       await mkdir(path.dirname(this.filePath), { recursive: true });
@@ -142,6 +144,37 @@ export class DemoStore {
     else this.data.organizationProfiles.push(profile);
     await this.persist();
     return profile;
+  }
+
+  chatExchanges(userId: string, orgNumber: string, query = ''): ChatExchange[] {
+    const normalizedQuery = query.trim().toLocaleLowerCase('nb-NO');
+    return this.data.chatExchanges
+      .filter((item) => item.userId === userId && item.orgNumber === orgNumber)
+      .filter((item) => !normalizedQuery || `${item.question} ${item.answer}`.toLocaleLowerCase('nb-NO').includes(normalizedQuery))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async saveChatExchange(exchange: Omit<ChatExchange, 'id'>): Promise<ChatExchange> {
+    const savedExchange: ChatExchange = { ...exchange, id: randomUUID() };
+    this.data.chatExchanges.push(savedExchange);
+    await this.persist();
+    return savedExchange;
+  }
+
+  async updateChatFeedback(userId: string, exchangeId: string, feedback: ChatFeedback | undefined): Promise<ChatExchange | null> {
+    const exchange = this.data.chatExchanges.find((item) => item.id === exchangeId && item.userId === userId);
+    if (!exchange) return null;
+    exchange.feedback = feedback;
+    await this.persist();
+    return exchange;
+  }
+
+  async deleteChatExchange(userId: string, exchangeId: string): Promise<boolean> {
+    const before = this.data.chatExchanges.length;
+    this.data.chatExchanges = this.data.chatExchanges.filter((item) => !(item.id === exchangeId && item.userId === userId));
+    if (this.data.chatExchanges.length === before) return false;
+    await this.persist();
+    return true;
   }
 
   async savePreference(userId: string, preference: TaskPreference): Promise<TaskPreference> {

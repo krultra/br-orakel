@@ -1,4 +1,4 @@
-import type { ChatAnswer, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, ChatExchange, ChatFeedback, DemoUser, Obligation, Organization, OrganizationProfile, OrganizationViewPreference, OrganizationUserInput, Source, TaskPreference, TaskPreferenceUpdate, UserReportedRequirement } from './domain/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }, ...init });
@@ -22,6 +22,9 @@ export const api = {
   saveOrganizationViewPreference: (orgNumber: string, mutedBefore?: string) => request<OrganizationViewPreference>(`/api/organizations/${orgNumber}/view-preference`, { method: 'PUT', body: JSON.stringify({ mutedBefore: mutedBefore || null }) }),
   organizationProfile: (orgNumber: string) => request<OrganizationProfile>(`/api/organizations/${orgNumber}/profile`),
   saveOrganizationProfile: (orgNumber: string, inputs: OrganizationUserInput[]) => request<OrganizationProfile>(`/api/organizations/${orgNumber}/profile`, { method: 'PUT', body: JSON.stringify({ inputs }) }),
+  chatHistory: (orgNumber: string, query = '') => request<ChatExchange[]>(`/api/chat/history?orgNumber=${encodeURIComponent(orgNumber)}&q=${encodeURIComponent(query)}`),
+  updateChatFeedback: (id: string, feedback?: ChatFeedback) => request<ChatExchange>(`/api/chat/history/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ feedback }) }),
+  deleteChatExchange: (id: string) => request<{ ok: true }>(`/api/chat/history/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   sources: (query = '', orgNumber?: string) => request<Source[]>(`/api/sources?q=${encodeURIComponent(query)}${orgNumber ? `&orgNumber=${encodeURIComponent(orgNumber)}` : ''}`),
   reports: () => request<UserReportedRequirement[]>('/api/reported-requirements'),
   createReport: (input: Partial<UserReportedRequirement>) => request<UserReportedRequirement>('/api/reported-requirements', { method: 'POST', body: JSON.stringify(input) }),

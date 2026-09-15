@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
-import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp, Clock3, EyeOff, FileCheck2, Filter, Landmark, Plus, Search, Send, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
+import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp, Clock3, EyeOff, FileCheck2, Filter, History, Landmark, Plus, Search, Send, ShieldCheck, Sparkles, ThumbsDown, ThumbsUp, Trash2, UserRound, X } from 'lucide-react';
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
-import type { ChatAnswer, DemoUser, Obligation, Organization, OrganizationProfile, Source, TaskStatus, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, ChatExchange, ChatFeedback, DemoUser, Obligation, Organization, OrganizationProfile, Source, TaskStatus, UserReportedRequirement } from './domain/types';
 import { isMutedForDate } from './domain/task-visibility';
 import { statusForDate } from './domain/task-status';
 import { parseFormattedAnswer } from './format-answer';
@@ -20,6 +20,10 @@ const statusClass: Record<TaskStatus, string> = {
 function formatDate(value?: string, includeYear = false) {
   if (!value) return 'Ved hendelse';
   return new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short', ...(includeYear ? { year: 'numeric' } : {}) }).format(new Date(`${value}T12:00:00`));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 }
 
 function formatDateInput(value: string) {
@@ -553,6 +557,10 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
   const [question, setQuestion] = useState('Hvilke oppgaver gjelder for oss nå?');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
+  const [history, setHistory] = useState<ChatExchange[]>([]);
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [feedback, setFeedback] = useState<ChatFeedback | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const [chatError, setChatError] = useState('');
   const [isSlow, setIsSlow] = useState(false);
@@ -563,6 +571,12 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
     const timer = window.setTimeout(() => setIsSlow(true), 8000);
     return () => window.clearTimeout(timer);
   }, [isLoading]);
+  useEffect(() => {
+    setAnswer(null);
+    setSubmittedQuestion('');
+    setFeedback(undefined);
+    void api.chatHistory(orgNumber).then(setHistory).catch(() => setHistory([]));
+  }, [orgNumber]);
   useEffect(() => () => abortControllerRef.current?.abort(), []);
   const ask = async () => {
     const nextQuestion = question.trim();
@@ -573,10 +587,14 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
     abortControllerRef.current = controller;
     setSubmittedQuestion(nextQuestion);
     setChatError('');
+    setFeedback(undefined);
     setIsLoading(true);
     try {
       const nextAnswer = await api.chat(nextQuestion, orgNumber, controller.signal);
-      if (requestSequenceRef.current === requestId) setAnswer(nextAnswer);
+      if (requestSequenceRef.current === requestId) {
+        setAnswer(nextAnswer);
+        if (nextAnswer.exchangeId) void api.chatHistory(orgNumber).then(setHistory).catch(() => undefined);
+      }
     } catch (error) {
       if (requestSequenceRef.current !== requestId || (error instanceof DOMException && error.name === 'AbortError')) return;
       setChatError(error instanceof Error ? error.message : 'Losen kunne ikke svare akkurat nå.');
@@ -600,8 +618,32 @@ function ChatPanel({ orgNumber, sources }: { orgNumber: string; sources: Source[
       void ask();
     }
   };
-  const answerSources = sources.filter((source) => answer?.sourceIds.includes(source.id));
-  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <><FormattedAnswer text={answer.answer} /><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}{isLoading && <div className="chat-loading"><Sparkles size={15} /> Losen arbeider i bakgrunnen…{isSlow && <span>Dette kan ta opptil et halvt minutt når mange oppgaver skal vurderes.</span>}</div>}{submittedQuestion && <p className="submitted-question"><span>Sist sendt:</span> {submittedQuestion}</p>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label={isLoading ? 'Avbryt spørsmål' : 'Send spørsmål'} onClick={() => void (isLoading ? cancel() : ask())}>{isLoading ? 'Avbryt' : <Send size={16} />}</Button></div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
+  const historicalExchange = answer?.exchangeId ? history.find((item) => item.id === answer.exchangeId) : undefined;
+  const answerSources = historicalExchange?.sources.length ? historicalExchange.sources : sources.filter((source) => answer?.sourceIds.includes(source.id));
+  const visibleHistory = history.filter((item) => `${item.question} ${item.answer}`.toLocaleLowerCase('nb-NO').includes(historyQuery.trim().toLocaleLowerCase('nb-NO')));
+  const openExchange = (exchange: ChatExchange) => {
+    setQuestion(exchange.question);
+    setSubmittedQuestion(exchange.question);
+    setAnswer({ answer: exchange.answer, uncertainty: exchange.uncertainty, sourceIds: exchange.sourceIds, followUpQuestions: exchange.followUpQuestions, exchangeId: exchange.id });
+    setFeedback(exchange.feedback);
+    setChatError('');
+  };
+  const setExchangeFeedback = async (nextFeedback: ChatFeedback) => {
+    if (!answer?.exchangeId) return;
+    const updated = await api.updateChatFeedback(answer.exchangeId, feedback === nextFeedback ? undefined : nextFeedback);
+    setFeedback(updated.feedback);
+    setHistory((items) => items.map((item) => item.id === updated.id ? updated : item));
+  };
+  const deleteExchange = async (exchange: ChatExchange) => {
+    await api.deleteChatExchange(exchange.id);
+    setHistory((items) => items.filter((item) => item.id !== exchange.id));
+    if (answer?.exchangeId === exchange.id) {
+      setAnswer(null);
+      setSubmittedQuestion('');
+      setFeedback(undefined);
+    }
+  };
+  return <Card className="surface-card chat-card"><div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div><div className="chat-answer">{chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <><FormattedAnswer text={answer.answer} /><div className="uncertainty"><AlertCircle size={16} /><span>{answer.uncertainty}</span></div>{answerSources.map((source) => <a href={source.url} target="_blank" rel="noreferrer" key={source.id} className="chat-source"><FileCheck2 size={14} />{source.title}</a>)}<div className="followups">{answer.followUpQuestions.map((item) => <button key={item} onClick={() => setQuestion(item)}>{item}</button>)}</div><div className="chat-feedback"><span>Var dette nyttig?</span><button className={feedback === 'useful' ? 'selected' : ''} onClick={() => void setExchangeFeedback('useful')} disabled={!answer.exchangeId}><ThumbsUp size={14} /> Ja</button><button className={feedback === 'not_useful' ? 'selected' : ''} onClick={() => void setExchangeFeedback('not_useful')} disabled={!answer.exchangeId}><ThumbsDown size={14} /> Nei</button></div></> : <p className="muted">Still spørsmål om oppgaver, frister eller hva som må avklares.</p>}{isLoading && <div className="chat-loading"><Sparkles size={15} /> Losen arbeider i bakgrunnen…{isSlow && <span>Dette kan ta opptil et halvt minutt når mange oppgaver skal vurderes.</span>}</div>}{submittedQuestion && <p className="submitted-question"><span>Sist sendt:</span> {submittedQuestion}</p>}</div><div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label={isLoading ? 'Avbryt spørsmål' : 'Send spørsmål'} onClick={() => void (isLoading ? cancel() : ask())}>{isLoading ? 'Avbryt' : <Send size={16} />}</Button></div><div className="chat-history"><button className="chat-history-toggle" onClick={() => setShowHistory((visible) => !visible)}><History size={15} /> Tidligere spørsmål ({history.length})<ChevronRight size={15} className={showHistory ? 'rotated' : ''} /></button>{showHistory && <div className="chat-history-content"><Textfield aria-label="Søk i tidligere spørsmål" placeholder="Søk i historikken" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} />{visibleHistory.length > 0 ? <div className="chat-history-list">{visibleHistory.map((exchange) => <div className={`chat-history-item ${answer?.exchangeId === exchange.id ? 'selected' : ''}`} key={exchange.id}><button onClick={() => openExchange(exchange)}><strong>{exchange.question}</strong><small>{formatDateTime(exchange.createdAt)}{exchange.feedback === 'useful' ? ' · Nyttig' : exchange.feedback === 'not_useful' ? ' · Ikke nyttig' : ''}</small></button><button className="chat-history-delete" onClick={() => void deleteExchange(exchange)} aria-label="Slett tidligere svar"><Trash2 size={14} /></button></div>)}</div> : <p className="muted">Ingen tidligere spørsmål matcher søket.</p>}</div>}</div><div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div></Card>;
 }
 
 function ReportDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {

@@ -121,16 +121,16 @@ modellkontekst.
 ### Spor C – loshistorikk
 
 **Eier:** API + frontend  
-**Status:** READY  
+**Status:** IN PROGRESS
 **Avhengigheter:** virksomhetsprofilens bruker-/organisasjonskobling
 
-- [ ] Lagre `ChatExchange` med spørsmål, svar, kilder, usikkerhet og tidspunkt.
-- [ ] Knytte historikk til bruker og virksomhet.
-- [ ] Lage «Tidligere spørsmål» med søk og filtrering.
-- [ ] Åpne gammelt svar med samme kildevisning som nye svar.
-- [ ] Støtte «Still på nytt» og sletting.
-- [ ] Lagre nyttig/ikke nyttig som separat tilbakemelding.
-- [ ] Legge inn personvern- og lagringsavgrensning i dokumentasjonen.
+- [x] Lagre `ChatExchange` med spørsmål, svar, kilder, usikkerhet og tidspunkt.
+- [x] Knytte historikk til bruker og virksomhet.
+- [x] Lage «Tidligere spørsmål» med søk og filtrering.
+- [x] Åpne gammelt svar med samme kildevisning som nye svar.
+- [x] Støtte «Still på nytt» og sletting.
+- [x] Lagre nyttig/ikke nyttig som separat tilbakemelding.
+- [x] Legge inn personvern- og lagringsavgrensning i dokumentasjonen.
 
 **Akseptanse:** En bruker finner igjen egne spørsmål uten at en annen bruker
 kan se dem. Historiske svar viser hvilke kilder som faktisk ble brukt.

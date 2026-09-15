@@ -435,6 +435,31 @@ app.patch('/api/reported-requirements/:id', async (request, reply) => {
   return updated ? updated : reply.code(404).send({ message: 'Innspillet finnes ikke.' });
 });
 
+app.get('/api/chat/history', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan lese loshistorikken.' });
+  const { orgNumber = '', q = '' } = request.query as { orgNumber?: string; q?: string };
+  return demoStore.chatExchanges(user.id, orgNumber.replace(/\s/g, ''), q);
+});
+
+app.patch('/api/chat/history/:id', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan endre loshistorikken.' });
+  const { id } = request.params as { id: string };
+  const { feedback } = request.body as { feedback?: unknown };
+  if (feedback !== undefined && feedback !== 'useful' && feedback !== 'not_useful') return reply.code(400).send({ message: 'Ugyldig tilbakemelding.' });
+  const updated = await demoStore.updateChatFeedback(user.id, id, feedback as 'useful' | 'not_useful' | undefined);
+  return updated ? updated : reply.code(404).send({ message: 'Losutvekslingen finnes ikke.' });
+});
+
+app.delete('/api/chat/history/:id', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan slette loshistorikken.' });
+  const { id } = request.params as { id: string };
+  const deleted = await demoStore.deleteChatExchange(user.id, id);
+  return deleted ? { ok: true } : reply.code(404).send({ message: 'Losutvekslingen finnes ikke.' });
+});
+
 app.post('/api/chat', async (request, reply) => {
   const { question, orgNumber = '' } = request.body as { question?: string; orgNumber?: string };
   if (!question?.trim()) return reply.code(400).send({ message: 'Spørsmålet kan ikke være tomt.' });
@@ -447,13 +472,26 @@ app.post('/api/chat', async (request, reply) => {
       sourcesForOrganization('', organization.orgNumber),
       requirements.list(),
     ]);
-    return await chat.answer(question, {
+    const answer = await chat.answer(question, {
       organization,
       obligations: organizationObligations,
       sources: availableSources,
       reportedRequirements,
       userInputs: user ? demoStore.organizationProfile(user.id, organization.orgNumber).inputs : [],
     });
+    if (!user) return answer;
+    const saved = await demoStore.saveChatExchange({
+      userId: user.id,
+      orgNumber: organization.orgNumber,
+      question: question.trim(),
+      answer: answer.answer,
+      uncertainty: answer.uncertainty,
+      sourceIds: answer.sourceIds,
+      sources: availableSources.filter((source) => answer.sourceIds.includes(source.id)),
+      followUpQuestions: answer.followUpQuestions,
+      createdAt: new Date().toISOString(),
+    });
+    return { ...answer, exchangeId: saved.id };
   } catch (error) {
     if (error instanceof DatasetOrganizationError) {
       return reply.code(502).send({ code: 'DATASET_UNAVAILABLE', message: 'Det lokale hackathon-datasettet er ikke tilgjengelig akkurat nå.' });

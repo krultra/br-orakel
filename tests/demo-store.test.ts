@@ -57,3 +57,30 @@ test('DemoStore kan aktivere alle dempede oppgaver for én virksomhet', async ()
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('DemoStore isolerer loshistorikk per bruker og virksomhet', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'br-orakel-chat-history-'));
+  try {
+    const store = new DemoStore(path.join(directory, 'demo-store.json'));
+    await store.init();
+    const user = await store.createUser({ username: `history-${Date.now()}`, displayName: 'Historikkbruker', password: 'demo' });
+    const exchange = await store.saveChatExchange({
+      userId: user.id,
+      orgNumber: '999999999',
+      question: 'Hva gjelder for oss?',
+      answer: 'Dette er et veiledende svar.',
+      uncertainty: 'Kontroller gjeldende kilde.',
+      sourceIds: ['source-1'],
+      sources: [{ id: 'source-1', title: 'Kilde', url: 'https://example.com', officiality: 'OFFICIAL_GUIDANCE', retrievedAt: '2026-09-15T10:00:00.000Z', relevantExcerpt: 'Utdrag' }],
+      followUpQuestions: ['Har dere ansatte?'],
+      createdAt: '2026-09-15T10:00:00.000Z',
+    });
+    assert.equal(store.chatExchanges(user.id, '999999999', 'gjeld').length, 1);
+    assert.equal(store.chatExchanges(user.id, '888888888').length, 0);
+    assert.equal((await store.updateChatFeedback(user.id, exchange.id, 'useful'))?.feedback, 'useful');
+    assert.equal(await store.deleteChatExchange(user.id, exchange.id), true);
+    assert.equal(store.chatExchanges(user.id, '999999999').length, 0);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
