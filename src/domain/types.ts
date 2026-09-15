@@ -28,6 +28,8 @@ export interface DemoUser {
   displayName: string;
   role: UserRole;
   organizationNumbers: string[];
+  /** The last saved organization opened by this user. */
+  lastOrganizationNumber?: string;
 }
 
 export type RecurrenceFrequency = 'monthly' | 'quarterly' | 'yearly';

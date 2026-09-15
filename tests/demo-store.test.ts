@@ -16,6 +16,8 @@ test('DemoStore oppretter bruker, virksomhetsfavoritt og personlig oppgaveprefer
     assert.equal(store.authenticate('kari', 'feil'), null);
     const updatedUser = await store.addOrganization(user.id, '999999999');
     assert.deepEqual(updatedUser?.organizationNumbers, ['999999999']);
+    const rememberedUser = await store.setLastOrganization(user.id, '999999999');
+    assert.equal(rememberedUser?.lastOrganizationNumber, '999999999');
 
     await store.savePreference(user.id, {
       userId: user.id,

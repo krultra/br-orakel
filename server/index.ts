@@ -260,6 +260,15 @@ app.post('/api/me/organizations', async (request, reply) => {
   return demoStore.addOrganization(user.id, organization.orgNumber);
 });
 
+app.put('/api/me/last-organization', async (request, reply) => {
+  const user = sessionUser(request);
+  if (!user) return reply.code(401).send({ message: 'Du må logge inn før du velger virksomhet.' });
+  const orgNumber = String((request.body as { orgNumber?: string })?.orgNumber ?? '').replace(/\s/g, '');
+  const updatedUser = await demoStore.setLastOrganization(user.id, orgNumber);
+  if (!updatedUser) return reply.code(404).send({ message: 'Virksomheten er ikke lagret i Mine virksomheter.' });
+  return updatedUser;
+});
+
 app.delete('/api/me/organizations/:orgNumber', async (request, reply) => {
   const user = sessionUser(request);
   if (!user) return reply.code(401).send({ message: 'Du må logge inn før du endrer virksomheter.' });

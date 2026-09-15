@@ -138,6 +138,14 @@ export class DemoStore {
     return this.publicUser(user);
   }
 
+  async setLastOrganization(userId: string, orgNumber: string): Promise<DemoUser | null> {
+    const user = this.data.users.find((item) => item.id === userId);
+    if (!user || !user.organizationNumbers.includes(orgNumber)) return null;
+    user.lastOrganizationNumber = orgNumber;
+    await this.persist();
+    return this.publicUser(user);
+  }
+
   async removeOrganization(userId: string, orgNumber: string): Promise<DemoUser | null> {
     const user = this.data.users.find((item) => item.id === userId);
     if (!user) return null;

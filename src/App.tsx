@@ -233,10 +233,19 @@ function App() {
   const loadOrganization = async (number = orgNumber, preserveSelection = false) => {
     setLoading(true);
     try {
-      const [nextOrg, nextObligations, nextSources, nextReports, nextViewPreference, nextProfile, nextSupervisionThemes] = await Promise.all([api.organization(number), api.obligations(number), api.sources('', number), api.reports(), api.organizationViewPreference(number), api.organizationProfile(number), api.supervisionThemes(number)]);
-      setOrganization(nextOrg); setOrganizationProfile(nextProfile); setOrganizationMutedBefore(nextViewPreference.mutedBefore ?? ''); setObligations(nextObligations); setSources(nextSources); setReports(nextReports); setSupervisionThemes(nextSupervisionThemes); setSelectedObligationId((current) => preserveSelection ? (current && nextObligations.some((item) => item.id === current) ? current : null) : null); if (!preserveSelection) setSelectedOccurrenceDate(null); setOrganizationSearchResults([]); setToast('Virksomhetsoversikten er oppdatert.');
+      const [nextOrg, nextObligations, nextSources, nextViewPreference, nextProfile, nextSupervisionThemes] = await Promise.all([api.organization(number), api.obligations(number), api.sources('', number), api.organizationViewPreference(number), api.organizationProfile(number), api.supervisionThemes(number)]);
+      setOrganization(nextOrg); setOrganizationProfile(nextProfile); setOrganizationMutedBefore(nextViewPreference.mutedBefore ?? ''); setObligations(nextObligations); setSources(nextSources); setSupervisionThemes(nextSupervisionThemes); setSelectedObligationId((current) => preserveSelection ? (current && nextObligations.some((item) => item.id === current) ? current : null) : null); if (!preserveSelection) setSelectedOccurrenceDate(null); setOrganizationSearchResults([]); setToast('Virksomhetsoversikten er oppdatert.');
     } catch (error) { setOrganization(null); setOrganizationProfile(null); setOrganizationMutedBefore(''); setSupervisionThemes([]); setToast(error instanceof Error ? error.message : 'Kunne ikke laste virksomheten.'); }
     finally { setLoading(false); }
+  };
+
+  const rememberLastOrganization = async (number: string) => {
+    try {
+      const nextUser = await api.setLastOrganization(number);
+      setUser(nextUser);
+    } catch {
+      // Remembering the selection must not interrupt loading the organization.
+    }
   };
 
   const searchOrganizations = async () => {
@@ -244,6 +253,7 @@ function App() {
     if (!query) return;
     if (/^\d[\d\s]{8,}$/.test(query)) {
       await loadOrganization(query);
+      if (savedOrganizations.some((item) => item.orgNumber === query.replace(/\s/g, ''))) await rememberLastOrganization(query);
       return;
     }
     setSearchingOrganizations(true);
@@ -265,9 +275,10 @@ function App() {
       const organizationsForUser = await api.myOrganizations();
       setSavedOrganizations(organizationsForUser);
       if (nextUser.role === 'caseworker') setReports(await api.reports());
-      if (organizationsForUser[0]) {
-        setOrgNumber(organizationsForUser[0].orgNumber);
-        await loadOrganization(organizationsForUser[0].orgNumber);
+      const initialOrganization = organizationsForUser.find((item) => item.orgNumber === nextUser.lastOrganizationNumber) ?? organizationsForUser[0];
+      if (initialOrganization) {
+        setOrgNumber(initialOrganization.orgNumber);
+        await loadOrganization(initialOrganization.orgNumber);
       }
     }).catch(() => undefined).finally(() => setAuthChecking(false));
   }, []);
@@ -278,6 +289,7 @@ function App() {
       const nextUser = await api.addMyOrganization(organization.orgNumber);
       setUser(nextUser);
       setSavedOrganizations(await api.myOrganizations());
+      await rememberLastOrganization(organization.orgNumber);
       setToast('Virksomheten er lagt til i Mine virksomheter.');
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'Kunne ikke lagre virksomheten.');
@@ -310,9 +322,10 @@ function App() {
     const organizationsForUser = await api.myOrganizations();
     setSavedOrganizations(organizationsForUser);
     if (nextUser.role === 'caseworker') setReports(await api.reports());
-    if (organizationsForUser[0]) {
-      setOrgNumber(organizationsForUser[0].orgNumber);
-      await loadOrganization(organizationsForUser[0].orgNumber);
+    const initialOrganization = organizationsForUser.find((item) => item.orgNumber === nextUser.lastOrganizationNumber) ?? organizationsForUser[0];
+    if (initialOrganization) {
+      setOrgNumber(initialOrganization.orgNumber);
+      await loadOrganization(initialOrganization.orgNumber);
     }
   };
 
@@ -356,7 +369,7 @@ function App() {
       {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status, note) => { const updated = await api.updateReport(id, status, note); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
       {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} supervisionThemes={supervisionThemes} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} onContributionChanged={(points, action) => refreshContributionSummary(points, action)} />}
       {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Velg «Velg virksomhet» i topplinjen for å søke etter virksomheten din eller velge en lagret virksomhet.</Paragraph></Card>}
-      {showOrganizationChooser && user.role === 'business' && <OrganizationChooserDialog savedOrganizations={savedOrganizations} organization={organization} orgNumber={orgNumber} organizationSearchResults={organizationSearchResults} loading={loading} searching={searchingOrganizations} onClose={() => setShowOrganizationChooser(false)} onSearchTermChange={(value) => { setOrgNumber(value); setOrganizationSearchResults([]); }} onSearch={() => void searchOrganizations()} onSelectSaved={async (number) => { setOrgNumber(number); await loadOrganization(number); setShowOrganizationChooser(false); }} onSelectResult={async (number) => { setOrgNumber(number); await loadOrganization(number); }} onAdd={async () => { await addCurrentOrganization(); setShowOrganizationChooser(false); }} />}
+      {showOrganizationChooser && user.role === 'business' && <OrganizationChooserDialog savedOrganizations={savedOrganizations} organization={organization} orgNumber={orgNumber} organizationSearchResults={organizationSearchResults} loading={loading} searching={searchingOrganizations} onClose={() => setShowOrganizationChooser(false)} onSearchTermChange={(value) => { setOrgNumber(value); setOrganizationSearchResults([]); }} onSearch={() => void searchOrganizations()} onSelectSaved={async (number) => { setOrgNumber(number); await loadOrganization(number); await rememberLastOrganization(number); setShowOrganizationChooser(false); }} onSelectResult={async (number) => { setOrgNumber(number); await loadOrganization(number); if (savedOrganizations.some((item) => item.orgNumber === number)) await rememberLastOrganization(number); }} onAdd={async () => { await addCurrentOrganization(); setShowOrganizationChooser(false); }} />}
       {showOrganizationProfile && organization && organizationProfile && <OrganizationProfileDialog organization={organization} profile={organizationProfile} sources={sources} onClose={() => setShowOrganizationProfile(false)} onSwitch={() => { setShowOrganizationProfile(false); setShowOrganizationChooser(true); }} onSaved={(nextProfile) => { setOrganizationProfile(nextProfile); setToast('Virksomhetsprofilen er lagret.'); }} />}
       {showFeedback && <FeedbackDialog onClose={() => setShowFeedback(false)} onCreated={() => { setShowFeedback(false); void refreshContributionSummary(2, 'forbedringsforslag til ORaKeL'); setToast('Takk for tilbakemeldingen.'); }} />}
     </main>

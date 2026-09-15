@@ -14,6 +14,7 @@ export const api = {
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   myOrganizations: () => request<Organization[]>('/api/me/organizations'),
   addMyOrganization: (orgNumber: string) => request<DemoUser>('/api/me/organizations', { method: 'POST', body: JSON.stringify({ orgNumber }) }),
+  setLastOrganization: (orgNumber: string) => request<DemoUser>('/api/me/last-organization', { method: 'PUT', body: JSON.stringify({ orgNumber }) }),
   removeMyOrganization: (orgNumber: string) => request<DemoUser>(`/api/me/organizations/${encodeURIComponent(orgNumber)}`, { method: 'DELETE' }),
   organization: (orgNumber: string) => request<Organization>(`/api/organizations/${orgNumber}`),
   searchOrganizations: (query: string) => request<Organization[]>(`/api/organizations/search?q=${encodeURIComponent(query)}`),
