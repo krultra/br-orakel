@@ -84,6 +84,17 @@ test('adapteren merker eksplisitt systeminnsending for automatisk statusregel', 
   assert.equal(obligation.automaticCompletionPolicy, 'after_deadline');
 });
 
+test('adapteren skjuler Oppgaveregisterets placeholder for ukjent hendelseskategori', async () => {
+  const adapter = new OppgaveregisteretAdapter({
+    fetcher: async () => jsonResponse({ start: 0, antall: 1, maxAntall: 160, skjema: [rawForm({ bruksomraader: [{ navn: 'Hendelsesrapportering', hendelseskategori: { navn: '(beskrives)' } }] })] }),
+  });
+
+  const [obligation] = await adapter.listForOrganization(organization);
+
+  assert.equal(obligation.trigger, 'event');
+  assert.equal(obligation.eventLabel, undefined);
+});
+
 test('Oppgaveregisteret-adapteren paginerer over flere sider', async () => {
   const urls: string[] = [];
   const forms = [rawForm(), rawForm({ nummer: 'BR-TEST-02', guid: 'TEST02', navn: 'Andreoppgave' }), rawForm({ nummer: 'BR-TEST-03', guid: 'TEST03', navn: 'Tredjeoppgave' })];

@@ -140,7 +140,7 @@ function isEventLike(obligation: Obligation) {
 }
 
 function eventCategory(obligation: Obligation) {
-  return obligation.eventLabel || 'Uspesifisert hendelse';
+  return obligation.eventLabel && !/^\(beskrives\)$/i.test(obligation.eventLabel.trim()) ? obligation.eventLabel : 'Hendelse ikke spesifisert';
 }
 
 function FormattedAnswer({ text }: { text: string }) {

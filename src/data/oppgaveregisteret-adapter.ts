@@ -38,6 +38,8 @@ const usableIndustryCode = (value: string): boolean => /^\d{2}\.\d{1,3}$/.test(v
 
 const nestedText = (value: unknown, key: string): string | undefined => isRecord(value) ? text(value[key]) : undefined;
 
+const usableEventLabel = (value: string | undefined): string | undefined => value && !/^\(beskrives\)$/i.test(value.trim()) ? value : undefined;
+
 const categoryValues = (value: unknown): string[] => records(value).flatMap((item) => [text(item.verdi), text(item.kode)]).filter((value): value is string => Boolean(value));
 
 const submissionMetadata = (name: string, reportingForms: string[]): Pick<Obligation, 'submissionMode' | 'completionSource' | 'automaticCompletionPolicy'> => {
@@ -111,7 +113,7 @@ function mapObligation(raw: JsonRecord): Obligation | null {
   ]);
   const usage = formUsage(raw.bruksomraader);
   const eventUsage = usage.find((item) => text(item.navn)?.toLowerCase().includes('hendelsesrapportering'));
-  const eventLabel = nestedText(eventUsage?.hendelseskategori, 'navn');
+  const eventLabel = usableEventLabel(nestedText(eventUsage?.hendelseskategori, 'navn'));
   const reportingForms = categoryValues(raw.rapporteringsformer);
   const submission = submissionMetadata(name, reportingForms);
   const knownDeadlineDates = deadlineDates(usage);

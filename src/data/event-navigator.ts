@@ -88,6 +88,10 @@ function normalized(value: string) {
   return value.toLocaleLowerCase('nb-NO').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+function isPlaceholderEventLabel(value: string) {
+  return /^\(beskrives\)$/i.test(value.trim());
+}
+
 function obligationText(obligation: Obligation) {
   return normalized(`${obligation.eventLabel ?? ''} ${obligation.name} ${obligation.description} ${obligation.targetCriteria.join(' ')}`);
 }
@@ -95,7 +99,7 @@ function obligationText(obligation: Obligation) {
 export function buildEventGuides(obligations: Obligation[]): EventGuide[] {
   const knownLabels = new Set(predefinedGuides.flatMap((guide) => guide.aliases.map(normalized)));
   const dynamicLabels = [...new Set(obligations.map((item) => item.eventLabel).filter((label): label is string => Boolean(label && label.trim())))]
-    .filter((label) => !knownLabels.has(normalized(label)))
+    .filter((label) => !isPlaceholderEventLabel(label) && !knownLabels.has(normalized(label)))
     .sort((left, right) => left.localeCompare(right, 'nb'));
   return [...predefinedGuides, ...dynamicLabels.map((label) => ({
     id: `catalog-${normalized(label).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,

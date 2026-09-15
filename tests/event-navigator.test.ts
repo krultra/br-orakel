@@ -29,6 +29,7 @@ test('bygger forhåndsdefinerte og dynamiske hendelser fra katalogen', () => {
   const guides = buildEventGuides(obligations);
   assert.ok(guides.some((guide) => guide.id === 'new-employee' && guide.isPredefined));
   assert.ok(guides.some((guide) => guide.label === 'Flytting av produksjon' && !guide.isPredefined));
+  assert.equal(buildEventGuides([...obligations, { ...obligations[0], id: 'placeholder', eventLabel: '(beskrives)' }]).some((guide) => guide.label === '(beskrives)'), false);
 });
 
 test('finner relevante oppgaver på hendelsesetikett og beskrivelsestekst', () => {
