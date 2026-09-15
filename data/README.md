@@ -14,6 +14,9 @@ utviklingsmaskinen og er med vilje ignorert av Git:
   Persondimensjonen er ikke lastet ned.
 - `dim_aarsregnskap.parquet` (ca. 215 MB): metadata om årsregnskap 2020–2025.
 - `dim_feltkode.parquet` (ca. 198 KB): beskrivelse av regnskapsfeltkoder.
+- `stoetteordning_2020_2025.csv` (ca. 1,4 MB): 731 registrerte støtteordninger.
+- `stoettetildeling_2020_2025.csv` (ca. 256 MB): støttetildelinger med
+  mottaker, støttegiver, dato, beløp, ordning og statsstøttegrunnlag.
 - `informasjon-om-datasett.pdf` og `erd-diagram-hackathon.pdf`: arrangørens
   dokumentasjon og datamodell.
 
@@ -25,6 +28,7 @@ Kjør en strømme-/DuckDB-basert analyse av filene slik:
 
 ```bash
 npm run analyze-dataset -- ./data/raw
+npm run analyze-support -- ./data/raw
 ```
 
 Virksomhetsadapteren kan brukes lokalt uten live Enhetsregisteret:
