@@ -205,6 +205,7 @@ function App() {
   const [showOrganizationProfile, setShowOrganizationProfile] = useState(false);
   const [showOrganizationChooser, setShowOrganizationChooser] = useState(false);
   const [contributionSummary, setContributionSummary] = useState<ContributionSummary | null>(null);
+  const [contributionNotice, setContributionNotice] = useState<{ summary: ContributionSummary; points: number; action: string } | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [sloganIndex, setSloganIndex] = useState(0);
 
@@ -212,6 +213,12 @@ function App() {
     const timer = window.setInterval(() => setSloganIndex((current) => (current + 1) % slogans.length), 10_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!contributionNotice) return undefined;
+    const timer = window.setTimeout(() => setContributionNotice(null), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [contributionNotice]);
 
   const loadOrganization = async (number = orgNumber, preserveSelection = false) => {
     setLoading(true);
@@ -298,6 +305,16 @@ function App() {
     }
   };
 
+  const refreshContributionSummary = async (points?: number, action?: string) => {
+    try {
+      const summary = await api.contributionSummary();
+      setContributionSummary(summary);
+      if (points && action) setContributionNotice({ summary, points, action });
+    } catch {
+      // Contribution feedback must not interrupt the main user flow.
+    }
+  };
+
   if (authChecking) return <div className="auth-shell"><p>Laster ORaKeL…</p></div>;
   if (!user) return <AuthScreen onAuthenticated={(nextUser) => { void handleAuthenticated(nextUser); }} />;
 
@@ -323,13 +340,14 @@ function App() {
       </section>}
 
       {toast && <div className="toast" role="status"><Check size={16} /> {toast}<button onClick={() => setToast('')} aria-label="Lukk melding"><X size={16} /></button></div>}
+      {contributionNotice && <div className="global-contribution-notice"><ContributionNotice notice={contributionNotice} onClose={() => setContributionNotice(null)} /></div>}
 
       {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status) => { const updated = await api.updateReport(id, status); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} />}
-      {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} onContributionChanged={() => api.contributionSummary().then(setContributionSummary).catch(() => undefined)} />}
+      {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} onContributionChanged={(points, action) => refreshContributionSummary(points, action)} />}
       {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Velg «Velg virksomhet» i topplinjen for å søke etter virksomheten din eller velge en lagret virksomhet.</Paragraph></Card>}
       {showOrganizationChooser && user.role === 'business' && <OrganizationChooserDialog savedOrganizations={savedOrganizations} organization={organization} orgNumber={orgNumber} organizationSearchResults={organizationSearchResults} loading={loading} searching={searchingOrganizations} onClose={() => setShowOrganizationChooser(false)} onSearchTermChange={(value) => { setOrgNumber(value); setOrganizationSearchResults([]); }} onSearch={() => void searchOrganizations()} onSelectSaved={async (number) => { setOrgNumber(number); await loadOrganization(number); setShowOrganizationChooser(false); }} onSelectResult={async (number) => { setOrgNumber(number); await loadOrganization(number); }} onAdd={async () => { await addCurrentOrganization(); setShowOrganizationChooser(false); }} />}
       {showOrganizationProfile && organization && organizationProfile && <OrganizationProfileDialog organization={organization} profile={organizationProfile} sources={sources} onClose={() => setShowOrganizationProfile(false)} onSwitch={() => { setShowOrganizationProfile(false); setShowOrganizationChooser(true); }} onSaved={(nextProfile) => { setOrganizationProfile(nextProfile); setToast('Virksomhetsprofilen er lagret.'); }} />}
-      {showFeedback && <FeedbackDialog onClose={() => setShowFeedback(false)} onCreated={() => { setShowFeedback(false); void api.contributionSummary().then(setContributionSummary).catch(() => undefined); setToast('Takk for tilbakemeldingen.'); }} />}
+      {showFeedback && <FeedbackDialog onClose={() => setShowFeedback(false)} onCreated={() => { setShowFeedback(false); void refreshContributionSummary(2, 'forbedringsforslag til ORaKeL'); setToast('Takk for tilbakemeldingen.'); }} />}
     </main>
   </div>;
 }
@@ -391,7 +409,7 @@ function OrganizationProfileDialog({ organization, profile, sources, onClose, on
   return <div className="dialog-backdrop" role="presentation"><div className="dialog organization-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="organization-profile-title"><div className="dialog-heading"><div><p className="eyebrow">Virksomhetsprofil</p><Heading level={2} id="organization-profile-title">{organization.name}</Heading><Paragraph>Offisielle registeropplysninger og dine egne opplysninger holdes adskilt.</Paragraph></div><button onClick={onClose} aria-label="Lukk"><X /></button></div><section className="profile-section"><div className="profile-section-heading"><div><strong>Offisielle opplysninger</strong><span>Hentet fra virksomhetskilden</span></div><span className="trust trust-official"><ShieldCheck size={14} /> Offisiell</span></div><dl className="profile-fields">{officialFields.map(([field, fieldValue]) => <div key={field}><dt>{field}</dt><dd>{fieldValue}</dd></div>)}</dl></section><section className="profile-section"><div className="profile-section-heading"><div><strong>Egne opplysninger</strong><span>Dette er brukerinput og kan ikke endre registerdata eller juridiske konklusjoner.</span></div><span className="trust trust-user_input">Brukerinput</span></div>{inputs.length > 0 && <div className="user-input-list">{inputs.map((input) => <div className="user-input-row" key={input.id}><div><strong>{input.label}</strong><span>{input.value}</span><small>Brukerinput · oppdatert {formatDate(input.updatedAt.slice(0, 10), true)}</small></div><button type="button" onClick={() => setInputs((current) => current.filter((item) => item.id !== input.id))} aria-label={`Fjern ${input.label}`}><X size={15} /></button></div>)}</div>}<div className="profile-input-form"><Textfield label="Felt eller tema" placeholder="For eksempel regnskapssystem" value={label} onChange={(event) => setLabel(event.target.value)} /><Textfield label="Opplysning" placeholder="For eksempel Tripletex" value={value} onChange={(event) => setValue(event.target.value)} /><Button variant="secondary" onClick={addInput} disabled={!label.trim() || !value.trim()}>Legg til</Button></div></section><section className="profile-section"><div className="profile-section-heading"><div><strong>Kilder</strong><span>Opplysningene kan endres når kildene oppdateres.</span></div></div>{organization.sources.map((sourceId) => { const source = sources.find((item) => item.id === sourceId); return source ? <a className="profile-source" href={source.url} target="_blank" rel="noreferrer" key={source.id}><ShieldCheck size={15} /><span><strong>{source.title}</strong><small>Sist hentet {formatDate(source.retrievedAt.slice(0, 10), true)}</small></span><ChevronRight size={15} /></a> : null; })}</section><div className="dialog-actions"><Button variant="secondary" onClick={onSwitch}>Bytt virksomhet</Button><Button variant="secondary" onClick={onClose}>Lukk</Button><Button onClick={() => void save()} disabled={saving}>{saving ? 'Lagrer…' : 'Lagre egne opplysninger'}</Button></div></div></div>;
 }
 
-function Overview({ organization, organizationMutedBefore, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged, onOrganizationViewChanged, onContributionChanged }: { organization: Organization; organizationMutedBefore: string; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void; onOrganizationViewChanged: () => void; onContributionChanged: () => Promise<void> }) {
+function Overview({ organization, organizationMutedBefore, obligations, catalogObligations, allObligations, sources, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged, onOrganizationViewChanged, onContributionChanged }: { organization: Organization; organizationMutedBefore: string; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void; onOrganizationViewChanged: () => void; onContributionChanged: (points?: number, action?: string) => Promise<void> }) {
   const [showReport, setShowReport] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<'calendar' | 'events' | 'worklist' | 'report' | 'los'>('calendar');
   const [chatPrompt, setChatPrompt] = useState('');
@@ -447,7 +465,7 @@ function Overview({ organization, organizationMutedBefore, obligations, catalogO
       </div>
       <aside className="side-column"><ObligationDetail orgNumber={organization.orgNumber} obligation={selectedObligation} occurrenceDate={selectedOccurrenceDate} sources={sources} onTaskChanged={onTaskChanged} /></aside>
     </section>
-    {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => { setShowReport(false); void onContributionChanged(); }} />}
+    {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => { setShowReport(false); void onContributionChanged(3, 'forslag til mulig manglende plikt'); }} />}
   </>;
 }
 
@@ -662,6 +680,7 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, onContributionChanged 
   const [isLoading, setIsLoading] = useState(false);
   const [chatError, setChatError] = useState('');
   const [isSlow, setIsSlow] = useState(false);
+  const [contributionNotice, setContributionNotice] = useState<{ summary: ContributionSummary; points: number; action: string } | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestSequenceRef = useRef(0);
   useEffect(() => {
@@ -734,20 +753,30 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, onContributionChanged 
   };
   const setExchangeFeedback = async (nextFeedback: ChatFeedback) => {
     if (!answer?.exchangeId) return;
+    const earnedPoints = feedback !== 'useful' && nextFeedback === 'useful';
     const updated = await api.updateChatFeedback(answer.exchangeId, feedback === nextFeedback ? undefined : nextFeedback);
     setFeedback(updated.feedback);
     setShareStatus(updated.share?.status);
     setHistory((items) => items.map((item) => item.id === updated.id ? updated : item));
     await onContributionChanged();
+    if (earnedPoints) {
+      const summary = await api.contributionSummary();
+      setContributionNotice({ summary, points: 1, action: 'nyttig tilbakemelding på et los-svar' });
+    }
   };
   const setExchangeShare = async (status: ChatShareStatus) => {
     if (!answer?.exchangeId) return;
     setShareLoading(true);
     try {
+      const earnedPoints = status === 'consented' && shareStatus !== 'consented';
       const updated = await api.updateChatShare(answer.exchangeId, { status });
       setShareStatus(updated.share?.status);
       setHistory((items) => items.map((item) => item.id === updated.id ? updated : item));
       await onContributionChanged();
+      if (earnedPoints) {
+        const summary = await api.contributionSummary();
+        setContributionNotice({ summary, points: 5, action: 'samtykke til anonymisert FAQ-forslag' });
+      }
     } finally {
       setShareLoading(false);
     }
@@ -764,6 +793,7 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, onContributionChanged 
   };
   return <Card className="surface-card chat-card">
     <div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div>
+    {contributionNotice && <ContributionNotice notice={contributionNotice} onClose={() => setContributionNotice(null)} />}
     <div className="chat-answer">
       {chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <>
         <FormattedAnswer text={answer.answer} />
@@ -783,9 +813,14 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, onContributionChanged 
 }
 
 function ChatSharePrompt({ status, loading, onShare }: { status?: ChatShareStatus; loading: boolean; onShare: (status: ChatShareStatus) => void }) {
-  if (status === 'consented') return <div className="chat-sharing chat-sharing-confirmed"><strong>Anonymisert forslag sendt til FAQ-vurdering</strong><span>Organisasjonsnavn, organisasjonsnummer og kontaktopplysninger er fjernet. En saksbehandler må godkjenne innholdet før eventuell publisering.</span><button onClick={() => onShare('withdrawn')} disabled={loading}>Trekk samtykke</button></div>;
+  if (status === 'consented') return <div className="chat-sharing chat-sharing-confirmed"><strong>Samtykke gitt: anonymisert forslag sendt til FAQ-vurdering</strong><span>Organisasjonsnavn, organisasjonsnummer og kontaktopplysninger er fjernet. En saksbehandler må godkjenne innholdet før eventuell publisering.</span><Button variant="secondary" onClick={() => onShare('withdrawn')} disabled={loading}>Trekk samtykke</Button></div>;
   if (status === 'withdrawn') return <div className="chat-sharing"><span>Du har valgt å ikke dele dette svaret. Det forblir privat i loshistorikken.</span></div>;
-  return <div className="chat-sharing"><strong>Kan svaret hjelpe andre?</strong><span>Med ditt aktive samtykke kan et anonymisert spørsmål og svar foreslås til fellesskapets FAQ.</span><div><Button onClick={() => onShare('consented')} disabled={loading}>{loading ? 'Lagrer…' : 'Del anonymisert svar'}</Button><button onClick={() => onShare('withdrawn')} disabled={loading}>Ikke nå</button></div></div>;
+  return <div className="chat-sharing"><strong>Kan svaret hjelpe andre?</strong><span>Velg aktivt om dette anonymiserte spørsmålet og svaret kan foreslås til fellesskapets FAQ. Det blir ikke publisert automatisk.</span><div className="chat-sharing-actions"><Button onClick={() => onShare('consented')} disabled={loading}>{loading ? 'Lagrer…' : 'Ja, jeg samtykker til deling'}</Button><Button variant="secondary" onClick={() => onShare('withdrawn')} disabled={loading}>Nei, behold privat</Button></div></div>;
+}
+
+function ContributionNotice({ notice, onClose }: { notice: { summary: ContributionSummary; points: number; action: string }; onClose: () => void }) {
+  const { summary } = notice;
+  return <div className="contribution-notice" role="status"><div className="contribution-notice-icon"><Sparkles size={17} /></div><div><strong>Takk for at du bidrar!</strong><span>+{notice.points} poeng for {notice.action}.</span><span>Du har nå <b>{summary.points} poeng</b> og er <b>{summary.level}</b>{summary.nextLevel ? ` · ${summary.pointsToNextLevel} poeng til ${summary.nextLevel}` : ' · høyeste demo-nivå nådd'}.</span><small>Bidra mer ved å gi nyttig los-tilbakemelding, dele anonymiserte FAQ-forslag, foreslå manglende plikter eller sende inn forbedringsforslag.</small></div><button type="button" onClick={onClose} aria-label="Lukk poengmelding"><X size={15} /></button></div>;
 }
 
 function FeedbackDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
