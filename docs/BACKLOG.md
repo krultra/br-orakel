@@ -172,7 +172,12 @@ oversikt over hva som bør undersøkes videre.
 ### Spor F – organisering av hovedkolonnen
 
 **Eier:** frontend  
-**Status:** BLOCKED av endelig navigasjonsvalg
+**Status:** IN PROGRESS
+
+- [x] Lage separate arbeidsflater for årshjul, hendelser, arbeidsliste,
+  innmelding og los.
+- [x] La Oppgavedetaljer være eneste faste kort i høyre kolonne.
+- [x] Flytte los og kunnskapsgrunnlag til losens arbeidsflate.
 
 Anbefalt struktur er separate hovedvisninger, ikke én lang side:
 
