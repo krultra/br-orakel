@@ -19,6 +19,19 @@ interface StoreFile {
 
 const emptyStore = (): StoreFile => ({ users: [], taskPreferences: [], organizationViewPreferences: [], organizationProfiles: [], chatExchanges: [], contributionEvents: [], productFeedback: [] });
 
+const seededCaseworkers = () => [
+  {
+    username: process.env.DEMO_CASEWORKER_USERNAME ?? 'br-saksbehandler',
+    displayName: 'BR Saksbehandler',
+    password: process.env.DEMO_CASEWORKER_PASSWORD ?? 'demo',
+  },
+  {
+    username: process.env.DEMO_CASEWORKER_REVIEWER_USERNAME ?? 'br-kvalitet',
+    displayName: 'BR Kvalitetssikrer',
+    password: process.env.DEMO_CASEWORKER_REVIEWER_PASSWORD ?? 'demo',
+  },
+];
+
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
   return `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`;
@@ -52,16 +65,30 @@ export class DemoStore {
       this.data = emptyStore();
     }
 
-    const seededUsername = process.env.DEMO_CASEWORKER_USERNAME ?? 'br-saksbehandler';
-    if (!this.data.users.some((user) => user.username === seededUsername)) {
+    let seededUsersChanged = false;
+    for (const seed of seededCaseworkers()) {
+      const username = seed.username.trim().toLowerCase();
+      const existing = this.data.users.find((user) => user.username.toLowerCase() === username);
+      if (existing) {
+        // Keep the demo account usable when an older local store created it
+        // before roles were added. Do not reset its existing password/data.
+        if (existing.role !== 'caseworker') {
+          existing.role = 'caseworker';
+          seededUsersChanged = true;
+        }
+        continue;
+      }
       this.data.users.push({
         id: randomUUID(),
-        username: seededUsername,
-        displayName: 'BR Saksbehandler',
+        username,
+        displayName: seed.displayName,
         role: 'caseworker',
         organizationNumbers: [],
-        passwordHash: hashPassword(process.env.DEMO_CASEWORKER_PASSWORD ?? 'demo'),
+        passwordHash: hashPassword(seed.password),
       });
+      seededUsersChanged = true;
+    }
+    if (seededUsersChanged) {
       await this.persist();
     }
   }
