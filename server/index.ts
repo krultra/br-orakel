@@ -11,6 +11,7 @@ import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adap
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 import { FallbackConceptAdapter, FdkConceptAdapter, FdkConceptError } from '../src/data/fdk-concept-adapter.js';
 import { MockSupervisionAdapter } from '../src/data/supervision-adapter.js';
+import { DatasetSupportRegistryAdapter, FallbackSupportRegistryAdapter, MockSupportRegistryAdapter, SupportRegistryError } from '../src/data/support-registry-adapter.js';
 import { authorizedSourceDomains, withSourceAuthority } from '../src/data/authorized-sources.js';
 import { AuthorizedSourceRetriever } from '../src/data/authorized-source-retriever.js';
 import type { ChatShareProposal, DemoUser, Obligation, OrganizationViewPreference, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
@@ -41,6 +42,13 @@ const obligations = obligationProvider === 'live'
     })
   : new MockObligationAdapter();
 const supervision = new MockSupervisionAdapter(demoStore);
+const supportRegistry = new FallbackSupportRegistryAdapter(
+  new DatasetSupportRegistryAdapter({
+    rawPath: process.env.STOTTEREGISTER_RAW_PATH,
+    maxRows: Number(process.env.STOTTEREGISTER_MAX_ROWS ?? 1000),
+  }),
+  new MockSupportRegistryAdapter(),
+);
 const sources = new MockSourceAdapter();
 const conceptMode = process.env.FDK_CONCEPT_MODE ?? 'live';
 const concepts = conceptMode === 'mock'
@@ -210,7 +218,7 @@ const sourcesForOrganization = async (query: string, orgNumber?: string) => {
 
 await app.register(cors, { origin: true });
 
-app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider, obligationProvider, conceptProvider: conceptMode === 'mock' ? 'mock' : 'fdk+mock-fallback', supervisionProvider: 'mock' }));
+app.get('/api/health', async () => ({ ok: true, mode: runtimeMode, aiProvider, organizationProvider, obligationProvider, conceptProvider: conceptMode === 'mock' ? 'mock' : 'fdk+mock-fallback', supervisionProvider: 'mock', supportRegistryProvider: 'dataset+mock-fallback' }));
 
 app.get('/api/auth/me', async (request, reply) => {
   const user = sessionUser(request);
@@ -355,6 +363,18 @@ app.get('/api/organizations/:orgNumber/supervision-notices', async (request, rep
   if (!user) return reply.code(401).send({ message: 'Du må logge inn før du kan lese tilsynsvarsler.' });
   const { orgNumber } = request.params as { orgNumber: string };
   return supervision.listNotices(orgNumber.replace(/\s/g, ''));
+});
+
+app.get('/api/organizations/:orgNumber/support', async (request, reply) => {
+  const { orgNumber } = request.params as { orgNumber: string };
+  const normalizedOrgNumber = orgNumber.replace(/\s/g, '');
+  if (!/^\d{9}$/.test(normalizedOrgNumber)) return reply.code(400).send({ message: 'Organisasjonsnummeret må bestå av ni siffer.' });
+  try {
+    return await supportRegistry.listForOrganization(normalizedOrgNumber);
+  } catch (error) {
+    if (error instanceof SupportRegistryError) return reply.code(502).send({ code: 'STOTTEREGISTER_UNAVAILABLE', message: 'Støtteregisteret er ikke tilgjengelig akkurat nå.' });
+    throw error;
+  }
 });
 
 app.post('/api/organizations/:orgNumber/supervision-notices', async (request, reply) => {
@@ -658,11 +678,13 @@ app.post('/api/chat', async (request, reply) => {
     const organization = await organizations.findByOrgNumber(orgNumber);
     if (!organization) return { answer: 'Velg en virksomhet før du spør.', uncertainty: 'Ingen virksomhet valgt.', sourceIds: [], followUpQuestions: [] };
     const user = sessionUser(request);
-    const [organizationObligations, availableSources, reportedRequirements, selectedConcept] = await Promise.all([
+    const wantsSupportContext = /støtte|tilskudd|tildeling|støtteordning|bagatellmessig/i.test(question);
+    const [organizationObligations, availableSources, reportedRequirements, selectedConcept, supportResult] = await Promise.all([
       obligations.listForOrganization(organization),
       sourcesForOrganization('', organization.orgNumber),
       requirements.list(),
       typeof conceptId === 'string' && conceptId.trim() ? concepts.getById(conceptId) : Promise.resolve(null),
+      wantsSupportContext ? supportRegistry.listForOrganization(organization.orgNumber) : Promise.resolve(null),
     ]);
     const conceptSource = selectedConcept ? withSourceAuthority({
       id: `concept-source:${selectedConcept.id}`,
@@ -673,7 +695,20 @@ app.post('/api/chat', async (request, reply) => {
       retrievedAt: selectedConcept.retrievedAt,
       relevantExcerpt: selectedConcept.definition ?? 'Definisjon mangler i treffet.',
     }) : null;
-    const evidenceSources = conceptSource ? [...availableSources, conceptSource] : availableSources;
+    const supportSource = supportResult ? withSourceAuthority({
+      id: 'source-stotteregister',
+      title: supportResult.sourceType === 'mock' ? 'Støtteregisteret (mockdata)' : 'Støtteregisteret – registrerte tildelinger',
+      url: supportResult.sourceUrl,
+      sourceType: 'dataset' as const,
+      officiality: 'OFFICIAL' as const,
+      retrievedAt: supportResult.retrievedAt,
+      relevantExcerpt: `${supportResult.coverageNote} Antall treff for virksomheten: ${supportResult.awards.length}.`,
+    }) : null;
+    const evidenceSources = [
+      ...availableSources,
+      ...(supportSource ? [supportSource] : []),
+      ...(conceptSource ? [conceptSource] : []),
+    ];
     const retrievedContext = process.env.SOURCE_RETRIEVAL_ENABLED === 'false'
       ? []
       : await sourceRetriever.retrieve(question, availableSources);
@@ -688,6 +723,20 @@ app.post('/api/chat', async (request, reply) => {
       // the complete public concept catalogue is never sent to the model.
       additionalContext: [
         ...retrievedContext,
+        ...(supportResult ? [{
+          id: 'support-registry-context',
+          title: 'Registrerte støttetildelinger',
+          text: JSON.stringify({
+            source: supportResult.sourceType,
+            retrievedAt: supportResult.retrievedAt,
+            coverageNote: supportResult.coverageNote,
+            totalAwards: supportResult.awards.length,
+            totalPublishedAmount: supportResult.awards.reduce((sum, award) => sum + (award.amount ?? 0), 0),
+            awards: supportResult.awards.slice(0, 25).map(({ id, measureNumber, schemeName, providerName, awardDate, amount, currency, instrument, purpose, legalBasis, region }) => ({ id, measureNumber, schemeName, providerName, awardDate, amount, currency, instrument, purpose, legalBasis, region })),
+          }),
+          trustLevel: 'OFFICIAL' as const,
+          sourceId: supportSource?.id,
+        }] : []),
         ...(selectedConcept ? [{
           id: `concept:${selectedConcept.id}`,
           title: `Begrep: ${selectedConcept.term}`,

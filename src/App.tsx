@@ -3,7 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { AlertCircle, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, CircleHelp, Clock3, ExternalLink, EyeOff, FileCheck2, Filter, History, Landmark, Plus, Search, Send, ShieldCheck, Sparkles, ThumbsDown, ThumbsUp, Trash2, UserRound, X } from 'lucide-react';
 import { Alert, Button, Card, Heading, Paragraph, Tag, Textarea, Textfield } from '@digdir/designsystemet-react';
 import { api } from './api';
-import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareStatus, Concept, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, Source, SupervisionNotice, SupervisionTheme, TaskStatus, UserReportedRequirement } from './domain/types';
+import type { ChatAnswer, ChatExchange, ChatFeedback, ChatShareStatus, Concept, ContributionSummary, DemoUser, Obligation, Organization, OrganizationProfile, Source, SupportAward, SupportRegistryResult, SupervisionNotice, SupervisionTheme, TaskStatus, UserReportedRequirement } from './domain/types';
 import { buildEventGuides, obligationsForEvent, organizationEventContext, type EventGuide } from './data/event-navigator';
 import { conceptQueryForDataElement } from './data/concept-hints';
 import { isMutedForDate } from './domain/task-visibility';
@@ -222,6 +222,9 @@ function App() {
   const [contributionNotice, setContributionNotice] = useState<{ summary: ContributionSummary; points: number; action: string } | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [sloganIndex, setSloganIndex] = useState(0);
+  const [chatPrompt, setChatPrompt] = useState('');
+  const [chatPromptConceptId, setChatPromptConceptId] = useState<string | undefined>();
+  const [chatOpenRequest, setChatOpenRequest] = useState(0);
 
   useEffect(() => {
     const timer = window.setInterval(() => setSloganIndex((current) => (current + 1) % slogans.length), 10_000);
@@ -344,6 +347,12 @@ function App() {
     }
   };
 
+  const openLos = (prompt: string, conceptId?: string) => {
+    setChatPrompt(prompt);
+    setChatPromptConceptId(conceptId);
+    setChatOpenRequest((current) => current + 1);
+  };
+
   if (authChecking) return <div className="auth-shell"><p>Laster ORaKeL…</p></div>;
   if (!user) return <AuthScreen onAuthenticated={(nextUser) => { void handleAuthenticated(nextUser); }} />;
 
@@ -372,7 +381,7 @@ function App() {
       {contributionNotice && <div className="global-contribution-notice"><ContributionNotice notice={contributionNotice} onClose={() => setContributionNotice(null)} /></div>}
 
       {user.role === 'caseworker' && <AdminView reports={reports} onStatusChange={async (id, status, note) => { const updated = await api.updateReport(id, status, note); setReports((items) => items.map((item) => item.id === id ? updated : item)); setToast('Innspillet er oppdatert og endringen er logget i demoen.'); }} onReportChanged={(updated) => setReports((items) => items.map((item) => item.id === updated.id ? updated : item))} />}
-      {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} supervisionThemes={supervisionThemes} supervisionNotices={supervisionNotices} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} onSupervisionNoticeCreated={(notice) => setSupervisionNotices((items) => [notice, ...items])} onContributionChanged={(points, action) => refreshContributionSummary(points, action)} />}
+      {user.role === 'business' && organization && <Overview organization={organization} organizationMutedBefore={organizationMutedBefore} obligations={activeObligations} catalogObligations={filteredObligations} allObligations={obligations} sources={sources} supervisionThemes={supervisionThemes} supervisionNotices={supervisionNotices} selectedObligation={selectedObligation} selectedOccurrenceDate={selectedOccurrenceDate} setSelectedObligationId={setSelectedObligationId} setSelectedOccurrenceDate={setSelectedOccurrenceDate} calendarStart={calendarStart} setCalendarStart={setCalendarStart} calendarMode={calendarMode} setCalendarMode={setCalendarMode} statusFilter={statusFilter} setStatusFilter={setStatusFilter} visibilityFilter={visibilityFilter} setVisibilityFilter={setVisibilityFilter} onTaskChanged={(nextSelectedId) => { if (nextSelectedId !== undefined) setSelectedObligationId(nextSelectedId); void loadOrganization(organization.orgNumber, true); }} onOrganizationViewChanged={() => { void loadOrganization(organization.orgNumber, true); }} onSupervisionNoticeCreated={(notice) => setSupervisionNotices((items) => [notice, ...items])} onContributionChanged={(points, action) => refreshContributionSummary(points, action)} onAskLos={openLos} chatPrompt={chatPrompt} chatPromptConceptId={chatPromptConceptId} chatOpenRequest={chatOpenRequest} />}
       {user.role === 'business' && !organization && <Card className="surface-card empty-state"><Heading level={2}>Velkommen til ORaKeL</Heading><Paragraph>Velg «Velg virksomhet» i topplinjen for å søke etter virksomheten din eller velge en lagret virksomhet.</Paragraph></Card>}
       {showOrganizationChooser && user.role === 'business' && <OrganizationChooserDialog savedOrganizations={savedOrganizations} organization={organization} orgNumber={orgNumber} organizationSearchResults={organizationSearchResults} loading={loading} searching={searchingOrganizations} onClose={() => setShowOrganizationChooser(false)} onSearchTermChange={(value) => { setOrgNumber(value); setOrganizationSearchResults([]); }} onSearch={() => void searchOrganizations()} onSelectSaved={async (number) => { setOrgNumber(number); await loadOrganization(number); await rememberLastOrganization(number); setShowOrganizationChooser(false); }} onSelectResult={async (number) => { setOrgNumber(number); await loadOrganization(number); if (savedOrganizations.some((item) => item.orgNumber === number)) await rememberLastOrganization(number); }} onAdd={async () => { await addCurrentOrganization(); setShowOrganizationChooser(false); }} />}
       {showOrganizationProfile && organization && organizationProfile && <OrganizationProfileDialog organization={organization} profile={organizationProfile} sources={sources} onClose={() => setShowOrganizationProfile(false)} onSwitch={() => { setShowOrganizationProfile(false); setShowOrganizationChooser(true); }} onSaved={(nextProfile) => { setOrganizationProfile(nextProfile); setToast('Virksomhetsprofilen er lagret.'); }} />}
@@ -438,11 +447,9 @@ function OrganizationProfileDialog({ organization, profile, sources, onClose, on
   return <div className="dialog-backdrop" role="presentation"><div className="dialog organization-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="organization-profile-title"><div className="dialog-heading"><div><p className="eyebrow">Virksomhetsprofil</p><Heading level={2} id="organization-profile-title">{organization.name}</Heading><Paragraph>Offisielle registeropplysninger og dine egne opplysninger holdes adskilt.</Paragraph></div><button onClick={onClose} aria-label="Lukk"><X /></button></div><section className="profile-section"><div className="profile-section-heading"><div><strong>Offisielle opplysninger</strong><span>Hentet fra virksomhetskilden</span></div><span className="trust trust-official"><ShieldCheck size={14} /> Offisiell</span></div><dl className="profile-fields">{officialFields.map(([field, fieldValue]) => <div key={field}><dt>{field}</dt><dd>{fieldValue}</dd></div>)}</dl></section><section className="profile-section"><div className="profile-section-heading"><div><strong>Egne opplysninger</strong><span>Dette er brukerinput og kan ikke endre registerdata eller juridiske konklusjoner.</span></div><span className="trust trust-user_input">Brukerinput</span></div>{inputs.length > 0 && <div className="user-input-list">{inputs.map((input) => <div className="user-input-row" key={input.id}><div><strong>{input.label}</strong><span>{input.value}</span><small>Brukerinput · oppdatert {formatDate(input.updatedAt.slice(0, 10), true)}</small></div><button type="button" onClick={() => setInputs((current) => current.filter((item) => item.id !== input.id))} aria-label={`Fjern ${input.label}`}><X size={15} /></button></div>)}</div>}<div className="profile-input-form"><Textfield label="Felt eller tema" placeholder="For eksempel regnskapssystem" value={label} onChange={(event) => setLabel(event.target.value)} /><Textfield label="Opplysning" placeholder="For eksempel Tripletex" value={value} onChange={(event) => setValue(event.target.value)} /><Button variant="secondary" onClick={addInput} disabled={!label.trim() || !value.trim()}>Legg til</Button></div></section><section className="profile-section"><div className="profile-section-heading"><div><strong>Kilder</strong><span>Opplysningene kan endres når kildene oppdateres.</span></div></div>{organization.sources.map((sourceId) => { const source = sources.find((item) => item.id === sourceId); return source ? <a className="profile-source" href={source.url} target="_blank" rel="noreferrer" key={source.id}><ShieldCheck size={15} /><span><strong>{source.title}</strong><small>Sist hentet {formatDate(source.retrievedAt.slice(0, 10), true)}</small></span><ChevronRight size={15} /></a> : null; })}</section><div className="dialog-actions"><Button variant="secondary" onClick={onSwitch}>Bytt virksomhet</Button><Button variant="secondary" onClick={onClose}>Lukk</Button><Button onClick={() => void save()} disabled={saving}>{saving ? 'Lagrer…' : 'Lagre egne opplysninger'}</Button></div></div></div>;
 }
 
-function Overview({ organization, organizationMutedBefore, obligations, catalogObligations, allObligations, sources, supervisionThemes, supervisionNotices, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged, onOrganizationViewChanged, onSupervisionNoticeCreated, onContributionChanged }: { organization: Organization; organizationMutedBefore: string; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; supervisionThemes: SupervisionTheme[]; supervisionNotices: SupervisionNotice[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void; onOrganizationViewChanged: () => void; onSupervisionNoticeCreated: (notice: SupervisionNotice) => void; onContributionChanged: (points?: number, action?: string) => Promise<void> }) {
+function Overview({ organization, organizationMutedBefore, obligations, catalogObligations, allObligations, sources, supervisionThemes, supervisionNotices, selectedObligation, selectedOccurrenceDate, setSelectedObligationId, setSelectedOccurrenceDate, calendarStart, setCalendarStart, calendarMode, setCalendarMode, statusFilter, setStatusFilter, visibilityFilter, setVisibilityFilter, onTaskChanged, onOrganizationViewChanged, onSupervisionNoticeCreated, onContributionChanged, onAskLos, chatPrompt, chatPromptConceptId, chatOpenRequest }: { organization: Organization; organizationMutedBefore: string; obligations: Obligation[]; catalogObligations: Obligation[]; allObligations: Obligation[]; sources: Source[]; supervisionThemes: SupervisionTheme[]; supervisionNotices: SupervisionNotice[]; selectedObligation: Obligation | null; selectedOccurrenceDate: string | null; setSelectedObligationId: (id: string | null) => void; setSelectedOccurrenceDate: (date: string | null) => void; calendarStart: Date; setCalendarStart: (date: Date) => void; calendarMode: 'year' | 'list'; setCalendarMode: (mode: 'year' | 'list') => void; statusFilter: 'all' | TaskStatus; setStatusFilter: (value: 'all' | TaskStatus) => void; visibilityFilter: 'visible' | 'hidden' | 'muted' | 'all'; setVisibilityFilter: (value: 'visible' | 'hidden' | 'muted' | 'all') => void; onTaskChanged: (nextSelectedId?: string | null) => void; onOrganizationViewChanged: () => void; onSupervisionNoticeCreated: (notice: SupervisionNotice) => void; onContributionChanged: (points?: number, action?: string) => Promise<void>; onAskLos: (prompt: string, conceptId?: string) => void; chatPrompt: string; chatPromptConceptId?: string; chatOpenRequest: number }) {
   const [showReport, setShowReport] = useState(false);
-  const [workspaceView, setWorkspaceView] = useState<'calendar' | 'events' | 'supervision' | 'concepts' | 'worklist' | 'report' | 'los'>('calendar');
-  const [chatPrompt, setChatPrompt] = useState('');
-  const [chatPromptConceptId, setChatPromptConceptId] = useState<string | undefined>();
+  const [workspaceView, setWorkspaceView] = useState<'calendar' | 'events' | 'supervision' | 'concepts' | 'support' | 'worklist' | 'report'>('calendar');
   const [taskQuery, setTaskQuery] = useState('');
   const [taskTypeFilter, setTaskTypeFilter] = useState<'all' | 'periodic' | 'event'>('all');
   const [eventFilter, setEventFilter] = useState('all');
@@ -480,10 +487,11 @@ function Overview({ organization, organizationMutedBefore, obligations, catalogO
   };
   return <>
     <ReportingMetrics obligations={obligations} catalogObligations={allObligations} />
-    <nav className="workspace-switcher" aria-label="Velg arbeidsflate"><span>Arbeidsflate</span><button className={workspaceView === 'calendar' ? 'selected' : ''} onClick={() => setWorkspaceView('calendar')}>Årshjul</button><button className={workspaceView === 'events' ? 'selected' : ''} onClick={() => setWorkspaceView('events')}>Hendelser</button><button className={workspaceView === 'supervision' ? 'selected' : ''} onClick={() => setWorkspaceView('supervision')}>Tilsyn</button><button className={workspaceView === 'concepts' ? 'selected' : ''} onClick={() => setWorkspaceView('concepts')}>Begreper</button><button className={workspaceView === 'worklist' ? 'selected' : ''} onClick={() => setWorkspaceView('worklist')}>Arbeidsliste</button><button className={workspaceView === 'report' ? 'selected' : ''} onClick={() => setWorkspaceView('report')}>Meld inn</button><button className={workspaceView === 'los' ? 'selected' : ''} onClick={() => setWorkspaceView('los')}>Losen</button></nav>
+    <div className="los-dock"><ChatPanel orgNumber={organization.orgNumber} sources={sources} prefillQuestion={chatPrompt} prefillConceptId={chatPromptConceptId} openRequest={chatOpenRequest} onContributionChanged={onContributionChanged} /></div>
+    <nav className="workspace-switcher" aria-label="Velg arbeidsflate"><span>Arbeidsflate</span><button className={workspaceView === 'calendar' ? 'selected' : ''} onClick={() => setWorkspaceView('calendar')}>Årshjul</button><button className={workspaceView === 'events' ? 'selected' : ''} onClick={() => setWorkspaceView('events')}>Hendelser</button><button className={workspaceView === 'supervision' ? 'selected' : ''} onClick={() => setWorkspaceView('supervision')}>Tilsyn</button><button className={workspaceView === 'concepts' ? 'selected' : ''} onClick={() => setWorkspaceView('concepts')}>Begreper</button><button className={workspaceView === 'support' ? 'selected' : ''} onClick={() => setWorkspaceView('support')}>Støtte</button><button className={workspaceView === 'worklist' ? 'selected' : ''} onClick={() => setWorkspaceView('worklist')}>Arbeidsliste</button><button className={workspaceView === 'report' ? 'selected' : ''} onClick={() => setWorkspaceView('report')}>Meld inn</button></nav>
     <section className="dashboard-grid">
       <div className="main-column" ref={mainColumnRef}>
-        {workspaceView === 'events' ? <EventNavigator organization={organization} obligations={allObligations} guides={eventGuides} sources={sources} onSelectObligation={(id) => { setSelectedObligationId(id); setSelectedOccurrenceDate(null); }} onAskLos={(prompt) => { setChatPrompt(prompt); setChatPromptConceptId(undefined); setWorkspaceView('los'); }} /> : workspaceView === 'supervision' ? <SupervisionWorkspace organization={organization} themes={supervisionThemes} notices={supervisionNotices} obligations={allObligations} sources={sources} onSelectObligation={(id) => { setSelectedObligationId(id); setSelectedOccurrenceDate(null); }} onAskLos={(prompt) => { setChatPrompt(prompt); setChatPromptConceptId(undefined); setWorkspaceView('los'); }} onNoticeCreated={onSupervisionNoticeCreated} /> : workspaceView === 'concepts' ? <ConceptWorkspace selectedObligation={selectedObligation} onAskLos={(prompt, conceptId) => { setChatPrompt(prompt); setChatPromptConceptId(conceptId); setWorkspaceView('los'); }} /> : workspaceView === 'los' ? <div className="los-workspace"><ChatPanel orgNumber={organization.orgNumber} sources={sources} prefillQuestion={chatPrompt} prefillConceptId={chatPromptConceptId} onContributionChanged={onContributionChanged} /><SourcePanel sources={sources} /></div> : workspaceView === 'report' ? <ReportWorkspace onOpen={() => setShowReport(true)} /> : <>
+        {workspaceView === 'events' ? <EventNavigator organization={organization} obligations={allObligations} guides={eventGuides} sources={sources} onSelectObligation={(id) => { setSelectedObligationId(id); setSelectedOccurrenceDate(null); }} onAskLos={onAskLos} /> : workspaceView === 'supervision' ? <SupervisionWorkspace organization={organization} themes={supervisionThemes} notices={supervisionNotices} obligations={allObligations} sources={sources} onSelectObligation={(id) => { setSelectedObligationId(id); setSelectedOccurrenceDate(null); }} onAskLos={onAskLos} onNoticeCreated={onSupervisionNoticeCreated} /> : workspaceView === 'concepts' ? <ConceptWorkspace selectedObligation={selectedObligation} onAskLos={onAskLos} /> : workspaceView === 'support' ? <SupportWorkspace organization={organization} onAskLos={onAskLos} /> : workspaceView === 'report' ? <ReportWorkspace onOpen={() => setShowReport(true)} /> : <>
         {workspaceView !== 'worklist' && <><Card className="surface-card calendar-card"><div className="card-heading-row"><div><p className="eyebrow">Rullerende 12 måneder</p><Heading level={2}>Årshjul</Heading><span className="calendar-caption">Katalog over relevante oppgaver. Velg en oppgave for å legge den i arbeidslisten.</span></div><div className="calendar-controls"><button className="calendar-nav" onClick={() => setCalendarStart(shiftMonth(calendarStart, -1))} aria-label="Vis forrige måned"><ChevronLeft size={17} /></button><span>{formatDate(dateKey(calendarStart), true)} – {formatDate(dateKey(shiftMonth(calendarStart, 11)), true)}</span><button className="calendar-nav" onClick={() => setCalendarStart(shiftMonth(calendarStart, 1))} aria-label="Vis neste måned"><ChevronRight size={17} /></button><button className="calendar-today" onClick={() => setCalendarStart(shiftMonth(monthStart(new Date()), -3))}>I dag</button><div className="segmented"><button className={calendarMode === 'year' ? 'selected' : ''} onClick={() => setCalendarMode('year')}>Årshjul</button><button className={calendarMode === 'list' ? 'selected' : ''} onClick={() => setCalendarMode('list')}>Liste</button></div></div></div>{calendarMode === 'year' ? <YearWheel obligations={catalogObligations} start={calendarStart} includeHidden={visibilityFilter !== 'visible'} selectedId={selectedObligation?.id} selectedOccurrenceDate={selectedOccurrenceDate ?? undefined} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} /> : <ObligationList obligations={catalogObligations} selectedId={selectedObligation?.id} onSelect={(id, date) => { setSelectedObligationId(id); setSelectedOccurrenceDate(date ?? null); }} />}</Card><div className="workspace-mute-controls">{selectedObligation && <MuteControl orgNumber={organization.orgNumber} obligation={selectedObligation} onTaskChanged={onTaskChanged} />}<OrganizationMuteControl orgNumber={organization.orgNumber} mutedBefore={organizationMutedBefore} onChanged={onOrganizationViewChanged} /></div></>}
         {workspaceView === 'worklist' && <>
         <div className="workspace-heading"><div><p className="eyebrow">Arbeidsliste</p><Heading level={2}>{taskTypeFilter === 'event' ? 'Hendelser som krever oppfølging' : 'Det som må gjøres'}</Heading><span className="calendar-caption">Bare oppgaver du har aktivert med frist eller gjentakelse vises her.</span></div><div className="filter-row"><Filter size={16} /><select value={statusFilter} onChange={(event) => preserveMainScroll(() => setStatusFilter(event.target.value as typeof statusFilter))} aria-label="Filtrer oppgaver"><option value="all">Alle statuser</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><select value={visibilityFilter} onChange={(event) => preserveMainScroll(() => setVisibilityFilter(event.target.value as typeof visibilityFilter))} aria-label="Filtrer synlighet"><option value="visible">Synlige</option><option value="muted">Dempede</option><option value="hidden">Skjulte</option><option value="all">Alle oppgaver</option></select>{visibilityFilter === 'muted' && mutedCount > 0 && <Button variant="secondary" onClick={() => void activateAllMuted()} disabled={activatingAllMuted}>{activatingAllMuted ? 'Aktiverer…' : `Aktiver alle dempede (${mutedCount})`}</Button>}<select value={taskTypeFilter} onChange={(event) => { setTaskTypeFilter(event.target.value as typeof taskTypeFilter); setEventFilter('all'); }} aria-label="Filtrer oppgavetype"><option value="all">Alle oppgavetyper</option><option value="periodic">Med fast frist</option><option value="event">Ved hendelse</option></select>{taskTypeFilter === 'event' && <select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)} aria-label="Filtrer hendelse"><option value="all">Alle hendelser</option>{eventOptions.map((event) => <option key={event} value={event}>{event}</option>)}</select>}<select value={taskSort} onChange={(event) => setTaskSort(event.target.value as typeof taskSort)} aria-label="Sorter arbeidsliste"><option value="deadline">Nærmeste frist først</option><option value="status">Sorter på status</option><option value="agency">Sorter på etat</option></select><Textfield className="task-search" aria-label="Søk i arbeidslisten" placeholder="Søk i aktive oppgaver" value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} /></div></div>
@@ -548,6 +556,54 @@ function EventNavigator({ organization, obligations, guides, sources, onSelectOb
     </div>
     {undatedObligations.length > 0 && <div className="event-undated-tasks"><NoDatePanel items={undatedObligations.map((item) => ({ item }))} selectedId={undefined} onSelect={(id) => onSelectObligation(id)} /></div>}
   </div>;
+}
+
+function formatSupportAmount(value?: number, currency = 'NOK') {
+  if (value === undefined) return 'Beløp ikke oppgitt';
+  return new Intl.NumberFormat('nb-NO', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value);
+}
+
+function SupportWorkspace({ organization, onAskLos }: { organization: Organization; onAskLos: (prompt: string) => void }) {
+  const [result, setResult] = useState<SupportRegistryResult | null>(null);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    void api.support(organization.orgNumber).then((nextResult) => {
+      if (active) setResult(nextResult);
+    }).catch((reason) => {
+      if (active) setError(reason instanceof Error ? reason.message : 'Støtteregisteret kunne ikke søkes akkurat nå.');
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [organization.orgNumber]);
+  const filteredAwards = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase('nb-NO');
+    if (!result) return [];
+    return result.awards.filter((award) => !normalized || `${award.schemeName ?? ''} ${award.providerName} ${award.purpose ?? ''} ${award.instrument ?? ''} ${award.region ?? ''}`.toLocaleLowerCase('nb-NO').includes(normalized));
+  }, [query, result]);
+  const totalAmount = result?.awards.reduce((sum, award) => sum + (award.amount ?? 0), 0) ?? 0;
+  const sourceLabel = result?.sourceType === 'mock' ? 'Mockdata for demo' : 'Hackathon-datasett';
+  return <div className="support-workspace">
+    <Card className="surface-card support-intro"><div className="workspace-landing-icon"><Landmark size={20} /></div><div><p className="eyebrow">Støtteregisteret</p><Heading level={2}>Registrert offentlig støtte</Heading><Paragraph>Se publiserte støttetildelinger knyttet til {organization.name}. Dette er virksomhetskontekst – ikke en oversikt over støtte virksomheten har krav på eller kan søke om.</Paragraph><div className="support-org-context"><Landmark size={16} />{organization.name} · {organization.orgNumber}</div></div></Card>
+    {error && <Alert data-color="danger"><AlertCircle size={16} />{error}</Alert>}
+    {loading ? <Card className="surface-card support-loading"><Sparkles size={16} /> Henter støtteopplysninger…</Card> : <>
+      <div className="support-summary"><Card className="surface-card support-stat"><small>Registrerte tildelinger</small><strong>{result?.awards.length ?? 0}</strong><span>i tilgjengelig datasett</span></Card><Card className="surface-card support-stat"><small>Summerte beløp</small><strong>{formatSupportAmount(totalAmount)}</strong><span>kun beløp som er publisert</span></Card><Card className="surface-card support-stat"><small>Sist hentet</small><strong>{result ? formatDate(result.retrievedAt.slice(0, 10), true) : '–'}</strong><span>{sourceLabel}</span></Card></div>
+      <Card className="surface-card support-list-card"><div className="support-list-heading"><div><p className="eyebrow">Tildelinger</p><Heading level={3}>{filteredAwards.length} treff</Heading></div><Textfield aria-label="Søk i støttetildelinger" placeholder="Søk på ordning, støttegiver eller formål" value={query} onChange={(event) => setQuery(event.target.value)} /></div>{filteredAwards.length > 0 ? <div className="support-award-list">{filteredAwards.map((award) => <SupportAwardCard award={award} key={award.id} />)}</div> : <div className="support-empty"><strong>Ingen registrerte tildelinger funnet</strong><span>Det betyr ikke nødvendigvis at virksomheten ikke har mottatt støtte.</span></div>}<div className="support-footer"><span><ShieldCheck size={14} /> {sourceLabel} · hentet {result ? formatDate(result.retrievedAt.slice(0, 10), true) : '–'}</span><a href={SUPPORT_REGISTRY_SOURCE_URL} target="_blank" rel="noreferrer">Åpne Støtteregisteret <ExternalLink size={13} /></a></div></Card>
+      {result && <Card className="surface-card support-los-card"><div><p className="eyebrow">Videre utforsking</p><strong>Vil du forstå støttehistorikken?</strong><p>Losen kan hjelpe med å oppsummere registrerte tildelinger, støttegivere og begreper – med tydelig forbehold om datadekning.</p></div><Button variant="secondary" onClick={() => onAskLos(`Oppsummer de registrerte støttetildelingene for ${organization.name}. Bruk bare støtteopplysningene som er tilgjengelige i ORaKeL, forklar hva som er publisert, og skill tydelig mellom fakta, tolkning og det vi ikke vet.`)}><Sparkles size={15} /> Spør losen</Button></Card>}
+      <p className="support-disclaimer">{result?.coverageNote}</p>
+    </>}
+  </div>;
+}
+
+const SUPPORT_REGISTRY_SOURCE_URL = 'https://stotte.brreg.no/';
+
+function SupportAwardCard({ award }: { award: SupportAward }) {
+  return <article className="support-award"><div className="support-award-topline"><strong>{award.schemeName ?? 'Støtteordning ikke oppgitt'}</strong><span>{formatSupportAmount(award.amount, award.currency)}</span></div><div className="support-award-facts"><span>{award.providerName}</span>{award.awardDate && <span>Tildelt {formatDate(award.awardDate, true)}</span>}{award.instrument && <span>{award.instrument}</span>}</div><div className="support-award-details">{award.purpose && <span><small>Formål</small>{award.purpose}</span>}{award.region && <span><small>Region</small>{award.region}</span>}{award.measureNumber && <span><small>Støttetiltak</small>{award.measureNumber}</span>}{award.legalBasis && <span><small>Rettslig grunnlag</small>{award.legalBasis}</span>}</div>{award.schemeUrl && <a href={safeExternalUrl(award.schemeUrl) ?? undefined} target="_blank" rel="noreferrer">Les mer om ordningen <ExternalLink size={13} /></a>}<small className="support-trust"><ShieldCheck size={13} /> Offisiell registerinformasjon</small></article>;
 }
 
 const supervisionNoticeTypeLabels: Record<SupervisionNotice['noticeType'], string> = {
@@ -793,7 +849,7 @@ function SourcePanel({ sources }: { sources: Source[] }) {
   return <Card className="surface-card source-card"><div className="section-title"><div><p className="eyebrow">Kunnskapsgrunnlag</p><Heading level={3}>Kilder</Heading></div><Search size={18} /></div><Textfield aria-label="Søk i kilder" placeholder="Søk i godkjente kilder" value={query} onChange={(event) => setQuery(event.target.value)} />{filtered.map((source) => <div className="source-preview" key={source.id}><div className="source-label-row"><TrustLabel level={source.officiality} /><span className={`source-authority authority-${source.authority?.toLowerCase() ?? 'unverified'}`}>{sourceAuthorityLabel(source.authority)}</span></div><strong>{source.title}</strong><p>{source.relevantExcerpt}</p></div>)}</Card>;
 }
 
-function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, onContributionChanged }: { orgNumber: string; sources: Source[]; prefillQuestion?: string; prefillConceptId?: string; onContributionChanged: () => Promise<void> }) {
+function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, openRequest, onContributionChanged }: { orgNumber: string; sources: Source[]; prefillQuestion?: string; prefillConceptId?: string; openRequest: number; onContributionChanged: () => Promise<void> }) {
   const [question, setQuestion] = useState('Hvilke oppgaver gjelder for oss nå?');
   const [submittedQuestion, setSubmittedQuestion] = useState('');
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
@@ -804,6 +860,8 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, onCo
   const [shareStatus, setShareStatus] = useState<ChatShareStatus | undefined>();
   const [shareLoading, setShareLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [hasUnreadAnswer, setHasUnreadAnswer] = useState(false);
   const [chatError, setChatError] = useState('');
   const [isSlow, setIsSlow] = useState(false);
   const [contributionNotice, setContributionNotice] = useState<{ summary: ContributionSummary; points: number; action: string } | null>(null);
@@ -822,8 +880,12 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, onCo
     void api.chatHistory(orgNumber).then(setHistory).catch(() => setHistory([]));
   }, [orgNumber]);
   useEffect(() => {
-    if (prefillQuestion) setQuestion(prefillQuestion);
-  }, [prefillQuestion]);
+    if (prefillQuestion) {
+      setQuestion(prefillQuestion);
+      setIsCollapsed(false);
+      setHasUnreadAnswer(false);
+    }
+  }, [openRequest, prefillQuestion]);
   useEffect(() => () => abortControllerRef.current?.abort(), []);
   const ask = async () => {
     const nextQuestion = question.trim();
@@ -841,6 +903,7 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, onCo
       if (requestSequenceRef.current === requestId) {
         setAnswer(nextAnswer);
         setShareStatus(nextAnswer.shareStatus);
+        if (isCollapsed) setHasUnreadAnswer(true);
         if (nextAnswer.exchangeId) void api.chatHistory(orgNumber).then(setHistory).catch(() => undefined);
       }
     } catch (error) {
@@ -865,6 +928,13 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, onCo
       event.preventDefault();
       void ask();
     }
+  };
+  const toggleCollapsed = () => {
+    setIsCollapsed((current) => {
+      const next = !current;
+      if (!next) setHasUnreadAnswer(false);
+      return next;
+    });
   };
   const historicalExchange = answer?.exchangeId ? history.find((item) => item.id === answer.exchangeId) : undefined;
   const answerSources = historicalExchange?.sources.length ? historicalExchange.sources : sources.filter((source) => answer?.sourceIds.includes(source.id));
@@ -917,8 +987,9 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, onCo
       setShareStatus(undefined);
     }
   };
-  return <Card className="surface-card chat-card">
-    <div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>KI-forslag med kilder</span></div><span className="demo-badge">Demo</span></div>
+  return <Card className={`surface-card chat-card ${isCollapsed ? 'chat-card-collapsed' : ''}`}>
+    <div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>Tilgjengelig på tvers av arbeidsflater</span></div>{isLoading && <span className="los-status-indicator"><Sparkles size={13} className="spin" /> Arbeider</span>}{hasUnreadAnswer && !isLoading && <span className="los-status-indicator is-ready"><Check size={13} /> Svar klart</span>}<button type="button" className="chat-collapse-toggle" onClick={toggleCollapsed} aria-expanded={!isCollapsed}>{isCollapsed ? 'Åpne' : 'Minimer'}<ChevronRight size={15} className={!isCollapsed ? 'rotated' : ''} /></button></div>
+    {isCollapsed ? <div className="chat-collapsed-state"><span>{isLoading ? 'Losen arbeider i bakgrunnen…' : hasUnreadAnswer ? 'Et nytt los-svar er klart.' : answer ? 'Sist brukte svar ligger klart.' : 'Still spørsmål om virksomheten, oppgaver eller frister.'}</span><Button variant="secondary" onClick={toggleCollapsed}>{hasUnreadAnswer ? 'Les svar' : 'Åpne losen'}</Button></div> : <>
     {contributionNotice && <ContributionNotice notice={contributionNotice} onClose={() => setContributionNotice(null)} />}
     <div className="chat-answer">
       {chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <>
@@ -935,6 +1006,7 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, onCo
     <div className="chat-input"><Textarea aria-label="Spørsmål til KI-losen" rows={2} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={handleQuestionKeyDown} /><Button aria-label={isLoading ? 'Avbryt spørsmål' : 'Send spørsmål'} onClick={() => void (isLoading ? cancel() : ask())}>{isLoading ? 'Avbryt' : <Send size={16} />}</Button></div>
     <div className="chat-history"><button className="chat-history-toggle" onClick={() => setShowHistory((visible) => !visible)}><History size={15} /> Tidligere spørsmål ({history.length})<ChevronRight size={15} className={showHistory ? 'rotated' : ''} /></button>{showHistory && <div className="chat-history-content"><Textfield aria-label="Søk i tidligere spørsmål" placeholder="Søk i historikken" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} />{visibleHistory.length > 0 ? <div className="chat-history-list">{visibleHistory.map((exchange) => <div className={`chat-history-item ${answer?.exchangeId === exchange.id ? 'selected' : ''}`} key={exchange.id}><button onClick={() => openExchange(exchange)}><strong>{exchange.question}</strong><small>{formatDateTime(exchange.createdAt)}{exchange.feedback === 'useful' ? ' · Nyttig' : exchange.feedback === 'not_useful' ? ' · Ikke nyttig' : ''}</small></button><button className="chat-history-delete" onClick={() => void deleteExchange(exchange)} aria-label="Slett tidligere svar"><Trash2 size={14} /></button></div>)}</div> : <p className="muted">Ingen tidligere spørsmål matcher søket.</p>}</div>}</div>
     <div className="chat-trust"><ShieldCheck size={15} /> Svarene er veiledende og kan ikke erstatte juridisk vurdering.</div>
+    </>}
   </Card>;
 }
 

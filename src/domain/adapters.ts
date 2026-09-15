@@ -5,6 +5,7 @@ import type {
   Organization,
   OrganizationUserInput,
   Source,
+  SupportRegistryResult,
   SupervisionNotice,
   SupervisionTheme,
   TrustLevel,
@@ -35,6 +36,10 @@ export interface SupervisionAdapter {
   listForOrganization(org: Organization): Promise<SupervisionTheme[]>;
   listNotices(orgNumber: string): Promise<SupervisionNotice[]>;
   createNotice(orgNumber: string, input: Omit<SupervisionNotice, 'id' | 'organizationNumber' | 'trustLevel'>): Promise<SupervisionNotice>;
+}
+
+export interface SupportRegistryAdapter {
+  listForOrganization(orgNumber: string): Promise<SupportRegistryResult>;
 }
 
 export interface RequirementAdapter {

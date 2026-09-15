@@ -238,16 +238,16 @@ API-tilgang kan kobles inn senere.
 
 #### Første funksjonelle omfang
 
-- [ ] Lage `SupportRegistryAdapter` med mockdata og et provider-uavhengig
+- [x] Lage `SupportRegistryAdapter` med mockdata og et provider-uavhengig
   søkekontrakt.
-- [ ] Søke selektivt på organisasjonsnummer og vise støttegiver,
+- [x] Søke selektivt på organisasjonsnummer og vise støttegiver,
   støttetiltaksnummer, ordning, dato, beløp, støtteinstrument og rettslig
   grunnlag når feltene finnes.
-- [ ] Vise støtteinformasjonen i en egen virksomhetsprofilseksjon og som
-  begrenset, strukturert kontekst til losen ved relevante spørsmål.
-- [ ] Merke treffene som register-/veiledningsinformasjon og beholde skillet
+- [x] Vise støtteinformasjonen i en egen arbeidsflate og som begrenset,
+  strukturert kontekst til losen ved relevante spørsmål.
+- [x] Merke treffene som register-/veiledningsinformasjon og beholde skillet
   mellom offisielle registerdata, brukerinput og KI-forslag.
-- [ ] Ha en full mock-reise for en virksomhet med én eller flere tildelinger,
+- [x] Ha en full mock-reise for en virksomhet med én eller flere tildelinger,
   også når online-kilden ikke er tilgjengelig.
 - [ ] Avklare med BR om det finnes en støttet API-kontrakt og hvilke
   bruksbegrensninger som gjelder før live-integrasjon låses.

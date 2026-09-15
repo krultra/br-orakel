@@ -161,6 +161,38 @@ export interface SupervisionNotice {
   trustLevel: Extract<TrustLevel, 'OFFICIAL' | 'USER_REPORTED' | 'UNDER_REVIEW'>;
 }
 
+/** Published support award data. This is context, not a reporting obligation. */
+export interface SupportAward {
+  id: string;
+  organizationNumber: string;
+  recipientName: string;
+  measureNumber: string;
+  schemeName?: string;
+  schemeUrl?: string;
+  providerName: string;
+  awardDate?: string;
+  amount?: number;
+  currency?: string;
+  instrument?: string;
+  purpose?: string;
+  legalBasis?: string;
+  industry?: string;
+  region?: string;
+  status?: string;
+  sourceUrl: string;
+  sourceType: 'dataset' | 'register';
+  trustLevel: Extract<TrustLevel, 'OFFICIAL' | 'OFFICIAL_GUIDANCE'>;
+}
+
+export interface SupportRegistryResult {
+  organizationNumber: string;
+  awards: SupportAward[];
+  sourceUrl: string;
+  sourceType: 'dataset' | 'register' | 'mock';
+  retrievedAt: string;
+  coverageNote: string;
+}
+
 export interface Organization {
   orgNumber: string;
   name: string;

@@ -83,13 +83,22 @@ men viser maksimalt de første 1000 treffene. En maskin-til-maskin-løsning må
 etter tilgjengelig offentlig veiledning utarbeides i samarbeid med
 Brønnøysundregistrene.
 
-## Neste implementasjon
+## Implementert i v3.0
 
-1. Lage `SupportRegistryAdapter` med mockdata og en DuckDB-basert lokal
-   provider.
-2. Vise registrerte tildelinger i virksomhetsprofilen, med «registerdata» som
-   tillitsnivå og uten å blande dem med brukerinput.
-3. Sende bare aggregert og relevant støttehistorikk til losen når spørsmålet
-   gjelder støtte; ikke hele datasettet.
-4. Avklare om offentlig søk/JSON/CSV kan brukes maskinelt, eller om
+- `SupportRegistryAdapter` med mockdata og en DuckDB-basert lokal provider.
+- Egen arbeidsflate **Støtte** med antall tildelinger, summerte publiserte
+  beløp, søk, støttegiver, ordning, dato, instrument, formål og rettslig
+  grunnlag.
+- Tydelig merking av registerdata, mockdata og dekningsforbehold.
+- Knapp som sender en begrenset og strukturert støtteoppsummering til losen.
+- Fallback til mockdata når råfilene ikke er montert, slik at demoen fungerer
+  uten datasettet.
+
+## Neste steg
+
+1. Avklare om offentlig søk/JSON/CSV kan brukes maskinelt, eller om
    Brønnøysundregistrene må gi en egen API-tilgang.
+2. Eventuelt bytte DuckDB-provider med en offisiell API-provider uten å endre
+   frontendkontrakten.
+3. Vurdere en mer detaljert støtteprofil først når teamet har avklart hvilke
+   spørsmål og avgrensninger som skal demonstreres.
