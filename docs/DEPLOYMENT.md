@@ -107,7 +107,9 @@ Skriptet bruker `pi-tok` og `/home/tkruke/services/br-orakel` som standard.
 De kan overstyres med `BR_ORAKEL_REMOTE_HOST` og `BR_ORAKEL_REMOTE_DIR`.
 Det bygger og starter både demo (`br-orakel-demo` på port 3010) og test
 (`br-orakel-test` på port 3020). Det endrer ikke Caddy eller DNS. Verifiser
-først containerne direkte:
+først containerne direkte. Før arkivet pakkes ut tar skriptet også en datostemplet
+backup av den eksisterende `demo-store.json` via den aktuelle Docker-containeren
+under `backups/` i br-orakel-katalogen:
 
 ```bash
 ssh pi-tok 'curl --fail --silent http://127.0.0.1:3010/api/health'

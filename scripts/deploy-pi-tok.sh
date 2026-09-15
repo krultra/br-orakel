@@ -13,6 +13,7 @@ version="${ORAKEL_VERSION:-}"
 environment_name="$target"
 default_version="2.${demo_release}.${build_number}"
 container_name="br-orakel-test-br-orakel-test-1"
+backup_timestamp="$(date +%Y%m%d-%H%M%S)"
 
 if [[ "$target" == "demo" ]]; then
   container_name="br-orakel-demo-br-orakel-1"
@@ -24,7 +25,7 @@ if [[ "$target" != "test" && "$target" != "demo" ]]; then
 fi
 
 git archive --format=tar HEAD \
-  | ssh "$remote_host" "mkdir -p '$remote_dir' && if docker container inspect '$container_name' >/dev/null 2>&1; then mkdir -p '$remote_dir/backups' && if docker cp '$container_name:/app/data/runtime/demo-store.json' '$remote_dir/backups/demo-store-$target-\$(date +%Y%m%d-%H%M%S).json'; then echo 'br-orakel: tok backup av $target-store er opprettet.'; else echo 'ADVARSEL: klarte ikke å ta backup av $target-store.' >&2; fi; else echo 'INFO: ingen eksisterende $target-container å ta store-backup fra.'; fi && tar -xf - -C '$remote_dir'"
+  | ssh "$remote_host" "mkdir -p '$remote_dir' && if docker container inspect '$container_name' >/dev/null 2>&1; then mkdir -p '$remote_dir/backups' && if docker cp '$container_name:/app/data/runtime/demo-store.json' '$remote_dir/backups/demo-store-$target-$backup_timestamp.json'; then echo 'br-orakel: tok backup av $target-store er opprettet.'; else echo 'ADVARSEL: klarte ikke å ta backup av $target-store.' >&2; fi; else echo 'INFO: ingen eksisterende $target-container å ta store-backup fra.'; fi && tar -xf - -C '$remote_dir'"
 
 if [[ "$target" == "demo" ]]; then
   ssh "$remote_host" "cd '$remote_dir' && ORAKEL_VERSION='$version' ORAKEL_DEMO_RELEASE='$demo_release' ORAKEL_BUILD_NUMBER='$build_number' ORAKEL_ENVIRONMENT='$environment_name' BR_ORAKEL_HOST_PORT=3010 docker compose -p br-orakel-demo -f docker-compose.yml up --build -d"
