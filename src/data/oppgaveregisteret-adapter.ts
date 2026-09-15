@@ -1,5 +1,5 @@
 import type { ObligationAdapter } from '../domain/adapters.js';
-import type { Obligation, Organization, TrustLevel } from '../domain/types.js';
+import type { AutomaticCompletionPolicy, CompletionSource, Obligation, Organization, SubmissionMode, TrustLevel } from '../domain/types.js';
 
 const DEFAULT_BASE_URL = 'https://data.brreg.no/oppgaveregisteret/api';
 const REGISTER_SOURCE_ID = 'source-oppgaveregisteret';
@@ -39,6 +39,27 @@ const usableIndustryCode = (value: string): boolean => /^\d{2}\.\d{1,3}$/.test(v
 const nestedText = (value: unknown, key: string): string | undefined => isRecord(value) ? text(value[key]) : undefined;
 
 const categoryValues = (value: unknown): string[] => records(value).flatMap((item) => [text(item.verdi), text(item.kode)]).filter((value): value is string => Boolean(value));
+
+const submissionMetadata = (reportingForms: string[]): Pick<Obligation, 'submissionMode' | 'completionSource' | 'automaticCompletionPolicy'> => {
+  const normalized = reportingForms.join(' ').toLocaleLowerCase('nb-NO');
+  // "Elektronisk" alone is deliberately not enough: a person can submit
+  // electronically. Only explicit system/integration wording activates the
+  // demo rule for automatic completion after the deadline.
+  const isSystemSubmission = [
+    /innsendelse\s+fra\s+system/,
+    /systeminnsending/,
+    /fra\s+system/,
+    /maskinell/,
+    /sluttbrukersystem/,
+    /system\s*[- ]?til\s*[- ]?system/,
+    /\bapi\b/,
+    /integrasjon/,
+  ].some((pattern) => pattern.test(normalized));
+  const submissionMode: SubmissionMode = isSystemSubmission ? 'system' : 'unknown';
+  const completionSource: CompletionSource = isSystemSubmission ? 'rule' : 'unknown';
+  const automaticCompletionPolicy: AutomaticCompletionPolicy = isSystemSubmission ? 'after_deadline' : 'none';
+  return { submissionMode, completionSource, automaticCompletionPolicy };
+};
 
 const formUsage = (value: unknown): JsonRecord[] => records(value);
 
@@ -90,6 +111,7 @@ function mapObligation(raw: JsonRecord): Obligation | null {
   const eventUsage = usage.find((item) => text(item.navn)?.toLowerCase().includes('hendelsesrapportering'));
   const eventLabel = nestedText(eventUsage?.hendelseskategori, 'navn');
   const reportingForms = categoryValues(raw.rapporteringsformer);
+  const submission = submissionMetadata(reportingForms);
   const knownDeadlineDates = deadlineDates(usage);
   const description = unique([purpose, ...usage.map((item) => text(item.kommentar))]).join(' ');
   const officialStatus: TrustLevel = text(raw.statustype)?.toUpperCase() === 'PUBLISERT' ? 'OFFICIAL' : 'UNDER_REVIEW';
@@ -112,6 +134,7 @@ function mapObligation(raw: JsonRecord): Obligation | null {
     attachments: unique([attachmentText, ...attachmentCategories]),
     sourceLinks: [REGISTER_SOURCE_ID],
     reportingForms,
+    ...submission,
     status: 'not_started',
     trigger: eventUsage ? 'event' : 'periodic',
     eventLabel,

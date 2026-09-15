@@ -57,6 +57,8 @@ test('Oppgaveregisteret-adapteren sender virksomhetsfiltre og mapper offisiell o
   assert.equal(obligation.trigger, 'event');
   assert.equal(obligation.frequency, 'Ved hendelse');
   assert.ok(obligation.reportingForms?.includes('Elektronisk'));
+  assert.equal(obligation.submissionMode, 'unknown');
+  assert.equal(obligation.automaticCompletionPolicy, 'none');
   assert.equal(obligation.estimatedMinutes, 15);
   assert.deepEqual(obligation.sourceLinks, ['source-oppgaveregisteret']);
   assert.ok(obligation.targetCriteria.includes('AS'));
@@ -65,6 +67,20 @@ test('Oppgaveregisteret-adapteren sender virksomhetsfiltre og mapper offisiell o
   assert.equal(requestUrl.searchParams.get('organisasjonsformer'), 'AS');
   assert.equal(requestUrl.searchParams.get('naeringskoder'), '47.110');
   assert.equal(requestUrl.searchParams.get('ekskluderArbeidsgiver'), 'false');
+});
+
+test('adapteren merker eksplisitt systeminnsending for automatisk statusregel', async () => {
+  const adapter = new OppgaveregisteretAdapter({
+    fetcher: async () => jsonResponse({ start: 0, antall: 1, maxAntall: 160, skjema: [rawForm({
+      rapporteringsformer: [{ kode: 'SYSTEM', verdi: 'A-melding innsendelse fra system' }],
+    })] }),
+  });
+
+  const [obligation] = await adapter.listForOrganization(organization);
+
+  assert.equal(obligation.submissionMode, 'system');
+  assert.equal(obligation.completionSource, 'rule');
+  assert.equal(obligation.automaticCompletionPolicy, 'after_deadline');
 });
 
 test('Oppgaveregisteret-adapteren paginerer over flere sider', async () => {
