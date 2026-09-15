@@ -7,8 +7,22 @@ import type { ChatAnswer, ChatExchange, ChatFeedback, DemoUser, Obligation, Orga
 import { buildEventGuides, obligationsForEvent, organizationEventContext, type EventGuide } from './data/event-navigator';
 import { isMutedForDate } from './domain/task-visibility';
 import { statusForDate } from './domain/task-status';
+import { estimateReportingMinutes } from './domain/reporting-metrics';
 import { parseFormattedAnswer } from './format-answer';
 import { appEnvironment, appVersion } from './version';
+
+const slogans = [
+  'Fra plikt til flyt',
+  'Få orden på rapporteringen',
+  'Rett oppgave, rett tid',
+  'Se hva som gjelder for virksomheten din',
+  'Mindre leting, mer oversikt',
+  'Rapporter med ro i magen',
+  'Samle pliktene på ett sted',
+  'Gjør frister enklere å følge opp',
+  'Kunnskap når du trenger den',
+  'ORaKeL loser deg gjennom rapporteringen',
+];
 
 const statusLabels: Record<TaskStatus, string> = {
   not_started: 'Ikke påbegynt', in_progress: 'Under arbeid', completed: 'Ferdig',
@@ -189,6 +203,12 @@ function App() {
   const [searchingOrganizations, setSearchingOrganizations] = useState(false);
   const [toast, setToast] = useState('');
   const [showOrganizationProfile, setShowOrganizationProfile] = useState(false);
+  const [sloganIndex, setSloganIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setSloganIndex((current) => (current + 1) % slogans.length), 10_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const loadOrganization = async (number = orgNumber, preserveSelection = false) => {
     setLoading(true);
@@ -290,7 +310,7 @@ function App() {
 
     <main className="page-container">
       {user.role === 'business' && <section className="hero-row">
-        <div><p className="eyebrow">MVP · BRREG-data + godkjente kilder</p><Heading level={1} data-size="2xl">Hold oversikten over rapporteringen</Heading><Paragraph>Én samlet arbeidsflate for plikter, frister, kilder og avklaringer.</Paragraph></div>
+        <div className="slogan-field" aria-live="polite"><p className="eyebrow">ORaKeL · rapporteringsnavigator</p><Heading level={1} data-size="2xl" key={sloganIndex}>{slogans[sloganIndex]}</Heading><Paragraph>Enklere oversikt over plikter, frister, kilder og avklaringer.</Paragraph></div>
         <div className="org-picker"><label htmlFor="saved-organizations">Mine virksomheter</label><select id="saved-organizations" value="" onChange={(event) => { if (event.target.value) { setOrgNumber(event.target.value); void loadOrganization(event.target.value); } }}><option value="">Velg lagret virksomhet…</option>{savedOrganizations.map((item) => <option key={item.orgNumber} value={item.orgNumber}>{item.name} ({item.orgNumber})</option>)}</select><div className="org-input-row"><Textfield id="org-number" value={orgNumber} onChange={(event) => { setOrgNumber(event.target.value); setOrganizationSearchResults([]); }} placeholder="Søk på navn eller organisasjonsnummer" aria-label="Søk på navn eller organisasjonsnummer" /><Button onClick={() => void searchOrganizations()} disabled={loading || searchingOrganizations}>{loading ? 'Laster…' : searchingOrganizations ? 'Søker…' : 'Søk'}</Button></div><span className="field-hint">Søk på navn eller ni siffer. Velg deretter «Legg til» for å lagre virksomheten.</span>{organization && !savedOrganizations.some((item) => item.orgNumber === organization.orgNumber) && <Button variant="secondary" onClick={() => void addCurrentOrganization()}>Legg til i Mine virksomheter</Button>}{organizationSearchResults.length > 0 && <div className="org-search-results" aria-label="Søkeresultater">{organizationSearchResults.map((item) => <button key={item.orgNumber} className="org-search-result" onClick={() => { setOrgNumber(item.orgNumber); void loadOrganization(item.orgNumber); }}><strong>{item.name}</strong><span>{item.orgNumber} · {item.organizationForm} · {item.municipality || 'Kommune ikke oppgitt'}</span></button>)}</div>}</div>
       </section>}
 
@@ -397,7 +417,7 @@ function Overview({ organization, organizationMutedBefore, obligations, catalogO
     }
   };
   return <>
-    <section className="context-bar"><div className="context-company"><div className="company-icon"><Landmark size={20} /></div><div><strong>{organization.name}</strong><span>Org.nr. {organization.orgNumber} · {organization.organizationForm} · {organization.municipality}</span></div></div><div className="context-facts"><span><strong>{allObligations.length}</strong> i katalogen</span><span><strong>{obligations.length}</strong> i arbeidslisten</span><span><strong>{allObligations.reduce((sum, item) => sum + item.estimatedMinutes, 0)} min</strong> estimert</span></div></section>
+    <ReportingMetrics obligations={obligations} catalogObligations={allObligations} />
     <nav className="workspace-switcher" aria-label="Velg arbeidsflate"><span>Arbeidsflate</span><button className={workspaceView === 'calendar' ? 'selected' : ''} onClick={() => setWorkspaceView('calendar')}>Årshjul</button><button className={workspaceView === 'events' ? 'selected' : ''} onClick={() => setWorkspaceView('events')}>Hendelser</button><button className={workspaceView === 'worklist' ? 'selected' : ''} onClick={() => setWorkspaceView('worklist')}>Arbeidsliste</button><button className={workspaceView === 'report' ? 'selected' : ''} onClick={() => setWorkspaceView('report')}>Meld inn</button><button className={workspaceView === 'los' ? 'selected' : ''} onClick={() => setWorkspaceView('los')}>Losen</button></nav>
     <section className="dashboard-grid">
       <div className="main-column" ref={mainColumnRef}>
@@ -415,6 +435,30 @@ function Overview({ organization, organizationMutedBefore, obligations, catalogO
     </section>
     {showReport && <ReportDialog onClose={() => setShowReport(false)} onCreated={() => setShowReport(false)} />}
   </>;
+}
+
+function formatDuration(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours} t ${remainder} min` : `${hours} t`;
+}
+
+function ReportingMetrics({ obligations, catalogObligations }: { obligations: Obligation[]; catalogObligations: Obligation[] }) {
+  const currentMonth = monthStart(new Date());
+  const thisMonth = estimateReportingMinutes(catalogObligations, currentMonth, 1);
+  const nextTwelveMonths = estimateReportingMinutes(catalogObligations, currentMonth, 12);
+  const worklist = estimateReportingMinutes(obligations, currentMonth, 12);
+  return <section className="metrics-bar" aria-label="Rapporteringsstatistikk">
+    <div className="metrics-intro"><p className="eyebrow">Rapporteringsbelastning</p><strong>Et realistisk bilde av arbeidsmengden</strong><span>Estimater oppdateres når oppgaver skjules eller dempes.</span></div>
+    <div className="metrics-facts">
+      <span><strong>{catalogObligations.length}</strong><small>i katalogen</small></span>
+      <span><strong>{obligations.length}</strong><small>i arbeidslisten</small></span>
+      <span title={`${thisMonth.occurrenceCount} synlige forekomster`}><Clock3 size={15} /><strong>{formatDuration(thisMonth.minutes)}</strong><small>denne måneden</small></span>
+      <span title={`${nextTwelveMonths.occurrenceCount} synlige forekomster`}><Clock3 size={15} /><strong>{formatDuration(nextTwelveMonths.minutes)}</strong><small>neste 12 måneder</small></span>
+      <span title={`${worklist.occurrenceCount} synlige forekomster`}><Clock3 size={15} /><strong>{formatDuration(worklist.minutes)}</strong><small>arbeidsliste · 12 md.</small></span>
+    </div>
+  </section>;
 }
 
 function ReportWorkspace({ onOpen }: { onOpen: () => void }) {
