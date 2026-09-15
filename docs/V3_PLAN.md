@@ -52,12 +52,11 @@ Følgende er de relevante innspillene vi tar med videre:
 Målet er å gjøre språket i rapporteringsoppgavene forståelig uten å sende
 brukeren ut av ORaKeL.
 
-- [x] Søke etter begreper fra en egen begrepsarbeidsflate. Kontekstuelle
-  snarveier fra oppgavedetaljer og losen gjenstår.
-  begrepsarbeidsflate.
-- [ ] Vise anbefalt term, definisjon, kilde, eier, gyldighetsperiode når den
+- [x] Søke etter begreper fra en egen begrepsarbeidsflate og åpne kuraterte
+  begreper direkte fra oppgavedetaljer.
+- [x] Vise anbefalt term, definisjon, kilde, eier, gyldighetsperiode når den
   finnes og relaterte termer.
-- [ ] Vise tydelig forskjell på offisiell definisjon, forklarende veiledning og
+- [x] Vise tydelig forskjell på offisiell definisjon, forklarende veiledning og
   KI-generert forenkling.
 - [ ] Koble utvalgte begreper til felter i virksomhetsprofilen og
   Oppgaveregisteret når koblingen er dokumentert. En ukjent kobling skal vises
@@ -66,7 +65,7 @@ brukeren ut av ORaKeL.
   forklaring eller åpner begrepet. Hele begrepskatalogen skal aldri sendes til
   modellen.
 - [x] Ha mockdata for demo og en feiltolerant live-adapter.
-- [ ] Vise kilde-URL og hentetidspunkt på hvert treff.
+- [x] Vise kilde-URL og hentetidspunkt på hvert treff.
 
 #### Teknisk anbefaling for begreper
 

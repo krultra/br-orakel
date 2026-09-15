@@ -7,6 +7,19 @@ const mockConcept = (concept: Omit<Concept, 'retrievedAt'>): Concept => ({
 
 export const mockConcepts: Concept[] = [
   mockConcept({
+    id: 'mock-concept-lonn',
+    uri: 'https://example.org/mock/concepts/lonn',
+    term: 'lønn',
+    alternativeTerms: ['lønnsinntekt', 'arbeidsvederlag'],
+    definition: 'Godtgjørelse som en arbeidstaker eller frilanser mottar for utført arbeid.',
+    publisher: 'Arbeids- og velferdsetaten (mockdata)',
+    status: 'gjeldende',
+    subject: 'Arbeid og inntekt',
+    relatedConcepts: [{ uri: 'https://example.org/mock/concepts/arbeidstaker', relation: 'associated' }],
+    sourceUrl: 'https://www.nav.no/arbeidsgiver',
+    trustLevel: 'OFFICIAL_GUIDANCE',
+  }),
+  mockConcept({
     id: 'mock-concept-arbeidstaker',
     uri: 'https://example.org/mock/concepts/arbeidstaker',
     term: 'arbeidstaker',

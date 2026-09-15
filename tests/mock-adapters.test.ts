@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MockChatAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
+import { MockChatAdapter, MockConceptAdapter, MockObligationAdapter, MockOrganizationAdapter, MockRequirementAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
 
 test('mock adapter finner demo-virksomheten på organisasjonsnummer', async () => {
   const organization = await new MockOrganizationAdapter().findByOrgNumber('999 999 999');
@@ -21,6 +21,13 @@ test('oppgaver og chat bruker samme virksomhetskontekst', async () => {
   const answer = await new MockChatAdapter().answer('Hva gjelder for ansatte?', { organization, obligations, sources });
   assert.ok(answer.sourceIds.length > 0);
   assert.match(answer.answer, /A-meldingen/);
+});
+
+test('begrepsadapteren finner lønn til kontekstuell oppslagshjelp', async () => {
+  const results = await new MockConceptAdapter().search('lønn');
+  assert.equal(results[0]?.term, 'lønn');
+  assert.match(results[0]?.definition ?? '', /Godtgjørelse/);
+  assert.equal(results[0]?.trustLevel, 'OFFICIAL_GUIDANCE');
 });
 
 test('brukerinnspill får egen status og kan oppdateres', async () => {

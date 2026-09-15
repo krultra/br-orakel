@@ -138,7 +138,8 @@ export class FallbackConceptAdapter implements ConceptAdapter {
 
   async search(query: string, limit?: number): Promise<Concept[]> {
     try {
-      return await this.primary.search(query, limit);
+      const results = await this.primary.search(query, limit);
+      return results.length > 0 ? results : this.fallback.search(query, limit);
     } catch {
       return this.fallback.search(query, limit);
     }

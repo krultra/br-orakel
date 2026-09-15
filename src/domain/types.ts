@@ -196,6 +196,8 @@ export interface Obligation {
   requiredData: string[];
   attachments: string[];
   sourceLinks: string[];
+  /** Curated terms in the description that can open an official concept definition. */
+  conceptLinks?: ObligationConceptLink[];
   reportingForms?: string[];
   status: TaskStatus;
   /** User-local status per recurring deadline instance. */
@@ -231,6 +233,20 @@ export interface Obligation {
   trigger: ObligationTrigger;
   eventLabel?: string;
   registerId?: string;
+}
+
+export interface ObligationConceptLink {
+  /** Exact text to make clickable in the obligation description. */
+  label: string;
+  /** Search term used against the ConceptAdapter. */
+  query: string;
+}
+
+export interface ObligationConceptLink {
+  /** Exact text to make clickable in the obligation description. */
+  label: string;
+  /** Search term used against the ConceptAdapter. */
+  query: string;
 }
 
 export interface UserReportedRequirement {
