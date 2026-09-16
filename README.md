@@ -204,3 +204,7 @@ docker compose up --build
 ```
 
 Docker er altså et isolasjons- og deployverktøy for denne MVP-en, ikke et nytt rammeverk dere må bruke i hver utviklingsrunde.
+
+## Lisens
+
+Repoet er offentlig tilgjengelig under [MIT-lisensen](LICENSE). Det tillater fri bruk, kopiering, endring, distribusjon og videreutvikling, inkludert kommersiell bruk, så lenge lisens- og copyrightteksten følger med.
