@@ -63,8 +63,9 @@ ORaKeL viser versjon i toppnavigasjonen som `x.y.z`:
 
 Vanlige lokale utviklingsbygg bruker fortsatt `0.0.z`. Bygg som deployeres til
 test eller demo får automatisk `3.0.z` (for eksempel `3.0.1`), med mindre
-`ORAKEL_VERSION` settes eksplisitt. `scripts/deploy-pi-tok.sh` deployer bare til
-`test.krultra.no` som standard. Demo krever eksplisitt
+`ORAKEL_VERSION` settes eksplisitt. Når samme build publiseres til både test og
+demo, skal samme `x.y.z` brukes i begge miljøer. `scripts/deploy-pi-tok.sh`
+deployer bare til `test.krultra.no` som standard. Demo krever eksplisitt
 `BR_ORAKEL_DEPLOY_TARGET=demo`.
 
 Oppgaver uten fast offisiell frist kan aktiveres fra oppgavedetaljene med en

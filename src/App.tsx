@@ -9,6 +9,7 @@ import { conceptQueryForDataElement } from './data/concept-hints';
 import { isMutedForDate } from './domain/task-visibility';
 import { statusForDate } from './domain/task-status';
 import { estimateReportingMinutes } from './domain/reporting-metrics';
+import { deadlineState, deadlineStateLabel } from './domain/deadline-state';
 import { parseFormattedAnswer } from './format-answer';
 import { appEnvironment, appVersion } from './version';
 import { InlineConceptText } from './components/InlineConceptText';
@@ -182,24 +183,6 @@ function itemStatusForDate(obligation: Obligation, date?: string) {
   return date && obligation.automaticStatusByDate?.[date]
     ? obligation.automaticStatusByDate[date]
     : statusForDate(obligation.status, date, obligation.statusByDate);
-}
-
-type DeadlineState = 'none' | 'normal' | 'soon' | 'overdue' | 'completed';
-
-function deadlineState(status: TaskStatus, date?: string, automated = false): DeadlineState {
-  if (!date) return 'none';
-  if (status === 'completed') return 'completed';
-  if (automated) return 'normal';
-  const today = monthStart(new Date());
-  const target = new Date(`${date}T12:00:00`);
-  const days = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
-  if (days < 0) return 'overdue';
-  if (days <= 14) return 'soon';
-  return 'normal';
-}
-
-function deadlineStateLabel(state: DeadlineState) {
-  return ({ none: '', normal: '', soon: 'Nær frist', overdue: 'Forfalt', completed: 'Levert' } as Record<DeadlineState, string>)[state];
 }
 
 function automationLabel(obligation: Obligation) {
