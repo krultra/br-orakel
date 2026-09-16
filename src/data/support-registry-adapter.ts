@@ -157,6 +157,10 @@ const mockAwards: SupportAward[] = [
   { id: 'mock-support-coop-1', organizationNumber: '938497257', recipientName: 'COOP NORD SA', measureNumber: '1000264162', schemeName: 'Regionalt DA 2026-', providerName: 'SKATTEETATEN', awardDate: '2026-08-05', amount: 3903506.35, currency: 'NOK', instrument: 'Skatte- eller avgiftsfritak', purpose: 'Regionalstøtte', region: '55-Troms', sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'register', trustLevel: 'OFFICIAL' },
   { id: 'mock-support-coop-2', organizationNumber: '938497257', recipientName: 'COOP NORD SA', measureNumber: '1000218775', schemeName: 'Regionalt DA 2026-', providerName: 'SKATTEETATEN', awardDate: '2026-07-06', amount: 3699086.66, currency: 'NOK', instrument: 'Skatte- eller avgiftsfritak', purpose: 'Regionalstøtte', region: '55-Troms', sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'register', trustLevel: 'OFFICIAL' },
   { id: 'mock-support-thon-1', organizationNumber: '986954244', recipientName: 'THON NORDLYS AS', measureNumber: '1000152450', schemeName: 'Kompensasjonsordning for reiseliv', providerName: 'INNOVASJON NORGE', awardDate: '2026-04-18', amount: 420000, currency: 'NOK', instrument: 'Tilskudd', purpose: 'Covid-19-kompensasjon', region: '03-Oslo', sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'register', trustLevel: 'OFFICIAL' },
+  { id: 'mock-support-fjordglott-2025-1', organizationNumber: '999999999', recipientName: 'Fjordgløtt Mat og Handel AS', measureNumber: 'mock-999999999-2025-1', schemeName: 'Kommunalt næringsfond', providerName: 'TRONDHEIM KOMMUNE', awardDate: '2025-03-18', amount: 75000, currency: 'NOK', instrument: 'Tilskudd', purpose: 'Etablering og utvikling', region: '50-Trøndelag', sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'register', trustLevel: 'OFFICIAL' },
+  { id: 'mock-support-fjordglott-2025-2', organizationNumber: '999999999', recipientName: 'Fjordgløtt Mat og Handel AS', measureNumber: 'mock-999999999-2025-2', schemeName: 'Kommunalt næringsfond', providerName: 'TRONDHEIM KOMMUNE', awardDate: '2025-11-04', amount: 120000, currency: 'NOK', instrument: 'Tilskudd', purpose: 'Energi- og miljøtiltak', region: '50-Trøndelag', sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'register', trustLevel: 'OFFICIAL' },
+  { id: 'mock-support-fjordglott-2026-1', organizationNumber: '999999999', recipientName: 'Fjordgløtt Mat og Handel AS', measureNumber: 'mock-999999999-2026-1', schemeName: 'Kommunalt næringsfond', providerName: 'TRONDHEIM KOMMUNE', awardDate: '2026-02-12', amount: 95000, currency: 'NOK', instrument: 'Tilskudd', purpose: 'Kompetanse og omstilling', region: '50-Trøndelag', sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'register', trustLevel: 'OFFICIAL' },
+  { id: 'mock-support-fjordglott-2026-2', organizationNumber: '999999999', recipientName: 'Fjordgløtt Mat og Handel AS', measureNumber: 'mock-999999999-2026-2', schemeName: 'Regionalt næringsfond', providerName: 'TRØNDELAG FYLKESKOMMUNE', awardDate: '2026-06-20', amount: 140000, currency: 'NOK', instrument: 'Tilskudd', purpose: 'Digitalisering og utvikling', region: '50-Trøndelag', sourceUrl: SUPPORT_REGISTRY_SOURCE_URL, sourceType: 'register', trustLevel: 'OFFICIAL' },
 ];
 
 export class MockSupportRegistryAdapter implements SupportRegistryAdapter {
@@ -175,5 +179,20 @@ export class FallbackSupportRegistryAdapter implements SupportRegistryAdapter {
       if (error instanceof SupportRegistryError) return this.fallback.listForOrganization(orgNumber);
       throw error;
     }
+  }
+}
+
+/**
+ * Keeps the clearly marked demo organization useful even when the local
+ * support-register dataset is mounted and returns an empty result for it.
+ * Real organizations continue to use the configured primary/fallback chain.
+ */
+export class DemoAwareSupportRegistryAdapter implements SupportRegistryAdapter {
+  constructor(private readonly primary: SupportRegistryAdapter, private readonly demo: SupportRegistryAdapter) {}
+
+  async listForOrganization(orgNumber: string): Promise<SupportRegistryResult> {
+    const normalized = orgNumber.replace(/\s/g, '');
+    if (normalized === '999999999') return this.demo.listForOrganization(normalized);
+    return this.primary.listForOrganization(orgNumber);
   }
 }

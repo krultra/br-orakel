@@ -12,7 +12,7 @@ import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adap
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 import { FallbackConceptAdapter, FdkConceptAdapter, FdkConceptError } from '../src/data/fdk-concept-adapter.js';
 import { MockSupervisionAdapter } from '../src/data/supervision-adapter.js';
-import { DatasetSupportRegistryAdapter, FallbackSupportRegistryAdapter, MockSupportRegistryAdapter, SupportRegistryError } from '../src/data/support-registry-adapter.js';
+import { DatasetSupportRegistryAdapter, DemoAwareSupportRegistryAdapter, FallbackSupportRegistryAdapter, MockSupportRegistryAdapter, SupportRegistryError } from '../src/data/support-registry-adapter.js';
 import { authorizedSourceDomains, withSourceAuthority } from '../src/data/authorized-sources.js';
 import { AuthorizedSourceRetriever } from '../src/data/authorized-source-retriever.js';
 import type { ChatShareProposal, DemoUser, Obligation, OrganizationViewPreference, SupportFollowUp, TaskPreference, TaskRecurrence, TaskStatus } from '../src/domain/types.js';
@@ -46,11 +46,14 @@ const obligations = obligationProvider === 'live'
     })
   : new MockObligationAdapter();
 const supervision = new MockSupervisionAdapter(demoStore);
-const supportRegistry = new FallbackSupportRegistryAdapter(
-  new DatasetSupportRegistryAdapter({
-    rawPath: process.env.STOTTEREGISTER_RAW_PATH,
-    maxRows: Number(process.env.STOTTEREGISTER_MAX_ROWS ?? 1000),
-  }),
+const supportRegistry = new DemoAwareSupportRegistryAdapter(
+  new FallbackSupportRegistryAdapter(
+    new DatasetSupportRegistryAdapter({
+      rawPath: process.env.STOTTEREGISTER_RAW_PATH,
+      maxRows: Number(process.env.STOTTEREGISTER_MAX_ROWS ?? 1000),
+    }),
+    new MockSupportRegistryAdapter(),
+  ),
   new MockSupportRegistryAdapter(),
 );
 const sources = new MockSourceAdapter();
