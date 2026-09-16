@@ -7,6 +7,7 @@ import fastifyStatic from '@fastify/static';
 import { MockChatAdapter, MockConceptAdapter, MockObligationAdapter, MockOrganizationAdapter, MockSourceAdapter } from '../src/data/mock-adapters.js';
 import { EnhetsregisteretAdapter, EnhetsregisteretError } from '../src/data/enhetsregisteret-adapter.js';
 import { DatasetOrganizationAdapter, DatasetOrganizationError } from '../src/data/dataset-organization-adapter.js';
+import { DemoAwareOrganizationAdapter } from '../src/data/demo-aware-organization-adapter.js';
 import { OpenAIChatAdapter, OpenAIChatError } from '../src/data/openai-chat-adapter.js';
 import { OppgaveregisteretAdapter, OppgaveregisteretError } from '../src/data/oppgaveregisteret-adapter.js';
 import { FallbackConceptAdapter, FdkConceptAdapter, FdkConceptError } from '../src/data/fdk-concept-adapter.js';
@@ -29,10 +30,13 @@ const obligationProvider = process.env.OPPGAVEREGISTERET_MODE ?? 'live';
 const organizations = organizationProvider === 'dataset'
   ? new DatasetOrganizationAdapter({ filePath: process.env.ENHETSREGISTERET_DATASET_PATH })
   : organizationProvider === 'live'
-    ? new EnhetsregisteretAdapter({
-      baseUrl: process.env.ENHETSREGISTERET_API,
-      timeoutMs: Number(process.env.ENHETSREGISTERET_TIMEOUT_MS ?? 10000),
-    })
+    ? new DemoAwareOrganizationAdapter(
+      new EnhetsregisteretAdapter({
+        baseUrl: process.env.ENHETSREGISTERET_API,
+        timeoutMs: Number(process.env.ENHETSREGISTERET_TIMEOUT_MS ?? 10000),
+      }),
+      new MockOrganizationAdapter(),
+    )
     : new MockOrganizationAdapter();
 const obligations = obligationProvider === 'live'
   ? new OppgaveregisteretAdapter({
