@@ -1083,7 +1083,7 @@ function ChatPanel({ orgNumber, sources, prefillQuestion, prefillConceptId, open
   };
   return <Card className={`surface-card chat-card ${isCollapsed ? 'chat-card-collapsed' : ''}`}>
     <div className="chat-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><Heading level={3}>Spør losen</Heading><span>Tilgjengelig på tvers av arbeidsflater</span></div>{isLoading && <span className="los-status-indicator"><Sparkles size={13} className="spin" /> Arbeider</span>}{hasUnreadAnswer && !isLoading && <span className="los-status-indicator is-ready"><Check size={13} /> Svar klart</span>}<button type="button" className="chat-collapse-toggle" onClick={toggleCollapsed} aria-expanded={!isCollapsed}>{isCollapsed ? 'Åpne' : 'Minimer'}<ChevronRight size={15} className={!isCollapsed ? 'rotated' : ''} /></button></div>
-    {isCollapsed ? <div className="chat-collapsed-state"><span>{isLoading ? 'Losen arbeider i bakgrunnen…' : hasUnreadAnswer ? 'Et nytt los-svar er klart.' : answer ? 'Sist brukte svar ligger klart.' : 'Still spørsmål om virksomheten, oppgaver eller frister.'}</span><Button variant="secondary" onClick={toggleCollapsed}>{hasUnreadAnswer ? 'Les svar' : 'Åpne losen'}</Button></div> : <>
+    {isCollapsed ? <div className="chat-collapsed-state"><span>{isLoading ? 'Losen arbeider i bakgrunnen…' : hasUnreadAnswer ? 'Et nytt los-svar er klart.' : answer ? 'Sist brukte svar ligger klart.' : 'Still spørsmål om virksomheten, oppgaver eller frister.'}</span></div> : <>
     {contributionNotice && <ContributionNotice notice={contributionNotice} onClose={() => setContributionNotice(null)} />}
     <div className="chat-answer">
       {chatError ? <Alert data-color="danger"><AlertCircle size={16} />{chatError}</Alert> : answer ? <>
